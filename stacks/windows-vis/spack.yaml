@@ -9,12 +9,12 @@ spack:
   - $CI_PROJECT_DIR/.ci/gitlab/
 
   specs:
-  - "vtk@9: ~mpi"
-  - "boost"
-  - "netlib-lapack"
-  - "py-beautifulsoup4"
-  - "qt"
-  - "paraview@:5.13.1~mpi~qt"
+  - "vtk@9: ~mpi" # stabalizes vtk support
+  - "boost" # stabalizes boost support
+  - "netlib-lapack" # stabalizes lapack/blas provider
+  - "py-beautifulsoup4" # token Python package, stabalize python, venv, etc
+  - "qt" # stabalizes qt support
+  - "paraview@:5.13.1~mpi~qt" # stabalizes paraview
 
   cdash:
     build-group: Windows Visualization (Kitware)
