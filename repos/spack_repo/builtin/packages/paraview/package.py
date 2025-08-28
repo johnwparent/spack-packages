@@ -808,6 +808,7 @@ class Paraview(CMakePackage, CudaPackage, ROCmPackage):
                     "sphere_remote = servermanager.Fetch(sphere);"
                     "Show(sphere);"
                     "Render()",
+                    timeout=600,
                 )
                 servers.terminate()
 
