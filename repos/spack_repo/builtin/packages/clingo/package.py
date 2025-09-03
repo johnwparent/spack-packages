@@ -79,8 +79,8 @@ class Clingo(CMakePackage):
         depends_on("py-cffi", type=("build", "run"), when="@5.5.0: platform=freebsd")
 
     patch("python38.patch", when="@5.3:5.4.0")
-    patch("size-t.patch", when="%msvc")
-    patch("vs2022.patch", when="%msvc@19.30:")
+    patch("size-t.patch", when="@:5.4.1,spack %msvc")
+    patch("vs2022.patch", when="@:5.4.1,spack %msvc@19.30:")
     patch("clingo_msc_1938_native_handle.patch", when="@:5.7.0 %msvc@19.38:")
 
     def patch(self):
