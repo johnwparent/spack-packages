@@ -93,7 +93,7 @@ class GccRuntime(Package):
             if not os.path.isabs(path):
                 continue
 
-            macho = MachO(path)
+            macho = MachO.MachO(path)
 
             # Get the LC_ID_DYLIB load command
             for load_command, _, data in macho.headers[-1].commands:
