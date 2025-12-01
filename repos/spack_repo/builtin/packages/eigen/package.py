@@ -81,6 +81,7 @@ class Eigen(CMakePackage, ROCmPackage):
     )
 
     conflicts("platform=windows", when="@3.4.1")
+    depends_on("cmake@4.0.3:", when="@5: platform=windows")
 
     # there is a bug in 3.3.4 that provokes a compile error with the xl compiler
     # See https://gitlab.com/libeigen/eigen/-/issues/1555
