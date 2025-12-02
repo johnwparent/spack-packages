@@ -81,7 +81,6 @@ class Eigen(CMakePackage, ROCmPackage):
     )
 
     conflicts("platform=windows", when="@3.4.1")
-    depends_on("cmake@4.0.3:", when="@5: platform=windows")
 
     # there is a bug in 3.3.4 that provokes a compile error with the xl compiler
     # See https://gitlab.com/libeigen/eigen/-/issues/1555
@@ -94,6 +93,8 @@ class Eigen(CMakePackage, ROCmPackage):
     depends_on("cmake@3.10:", when="@3.4.1:", type="build")
     depends_on("cmake@3.5:", when="@3.4.0", type="build")
     depends_on("cmake@:3", when="@:3.3", type="build")
+    depends_on("cmake@4.0.3:", when="@5: platform=windows", type="build")
+
 
     depends_on("boost@1.53:", when="@master", type="test")
     # TODO: latex and doxygen needed to produce docs with make doc
