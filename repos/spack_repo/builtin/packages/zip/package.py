@@ -41,6 +41,12 @@ class Zip(MakefilePackage):
     # these are not from the debian branch
     patch("12-gcc14-no-implicit-declarations-fix.patch", when="%gcc@14:")
 
+    patch(
+        "https://raw.githubusercontent.com/Homebrew/formula-patches/d2b59930/zip/xcode15.diff",
+        sha256="99cb7eeeb6fdb8df700f40bfffbc30516c94774cbf585f725d81c3224a2c530c",
+        when="platform=darwin"
+    )
+
     executables = ["^zip$"]
 
     @classmethod
