@@ -11,12 +11,13 @@ class Log4cxx(CMakePackage):
     """A C++ port of Log4j"""
 
     homepage = "https://logging.apache.org/log4cxx/latest_stable/"
-    url = "https://dlcdn.apache.org/logging/log4cxx/0.12.0/apache-log4cxx-0.12.0.tar.gz"
+    url = "https://dlcdn.apache.org/logging/log4cxx/1.6.1/apache-log4cxx-1.6.1.tar.gz"
 
     maintainers("nicmcd")
 
     license("Apache-2.0", checked_by="wdconinc")
 
+    version("1.6.1", sha256="187c85836f5b2f27fb1e8d77c7f1f2939725f1f6498b742b0dd569ba30965fd2")
     version("1.2.0", sha256="09f4748aa5675ef5c0770bedbf5e00488668933c5a935a43ac5b85be2436c48a")
 
     variant(
@@ -33,6 +34,13 @@ class Log4cxx(CMakePackage):
     depends_on("zip")
     depends_on("c", type="build")
     depends_on("cxx", type="build")
+
+
+    def url_for_version(self, version):
+        url = "https://dlcdn.apache.org/logging/log4cxx/{0}/apache-log4cxx-{0}.tar.gz"
+        if version <= Version("1.2"):
+            url = "https://archive.apache.org/dist/logging/log4cxx/{0}/apache-log4cxx-{0}.tar.gz"
+        return url.format(version.dotted)
 
     def cmake_args(self):
         return [
