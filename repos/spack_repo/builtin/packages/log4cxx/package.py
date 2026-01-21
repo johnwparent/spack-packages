@@ -34,6 +34,8 @@ class Log4cxx(CMakePackage):
     depends_on("zip")
     depends_on("c", type="build")
     depends_on("cxx", type="build")
+    # run dependency on fmt? 
+    # seems to need a fmt header when @ 1.6.1
 
 
     def url_for_version(self, version):
