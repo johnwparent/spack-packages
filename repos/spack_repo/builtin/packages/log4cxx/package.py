@@ -19,6 +19,7 @@ class Log4cxx(CMakePackage):
 
     version("1.6.1", sha256="187c85836f5b2f27fb1e8d77c7f1f2939725f1f6498b742b0dd569ba30965fd2")
     version("1.2.0", sha256="09f4748aa5675ef5c0770bedbf5e00488668933c5a935a43ac5b85be2436c48a")
+    version("0.12.1", sha256="7bea5cb477f0e31c838f0e1f4f498cc3b30c2eae74703ddda923e7e8c2268d22")
 
     variant(
         "cxxstd", default="20", description="C++ standard", values=("11", "17", "20"), multi=False
