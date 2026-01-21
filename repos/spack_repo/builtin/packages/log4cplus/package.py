@@ -19,6 +19,7 @@ class Log4cplus(CMakePackage):
 
     version("2.1.2", sha256="2450dfbb4ab35dd2c9e64d8c750c514bf7293b81d8f32af7ab124417f70adfad")
     version("2.0.8", sha256="ca36aa366036d1c61fc0366a9ffbcf32bad55d74878b2c36a9c34dcc00b8a0ca")
+    version("2.0.4", sha256="0c8a7b4cabff07032385f0c6d1a078d2a79c69b1c43b06991ca774fb85880252")
     version("1.2.2", sha256="853efd919f9ca76c518c0944e6b0ced1174523a86b6db046ed4f23fe695167bd")
 
     depends_on("c", type="build")
