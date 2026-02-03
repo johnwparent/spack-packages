@@ -11,13 +11,16 @@ class Tinyxml2(CMakePackage):
     """Simple, small, efficient, C++ XML parser"""
 
     homepage = "http://grinninglizard.com/tinyxml2/"
-    url = "https://github.com/leethomason/tinyxml2/archive/3.0.0.tar.gz"
+    url = "https://github.com/leethomason/tinyxml2/archive/refs/tags/3.0.0.tar.gz"
 
     license("Zlib")
 
+    version("11.0.0", sha256="5556deb5081fb246ee92afae73efd943c889cef0cafea92b0b82422d6a18f289")
+    version("10.1.0", sha256="9da7e1aebbf180ef6f39044b9740a4e96fa69e54a01318488512ae92ca97a685")
     version("10.0.0", sha256="3bdf15128ba16686e69bce256cc468e76c7b94ff2c7f391cc5ec09e40bff3839")
     version("9.0.0", sha256="cc2f1417c308b1f6acc54f88eb70771a0bf65f76282ce5c40e54cfe52952702c")
     version("8.0.0", sha256="6ce574fbb46751842d23089485ae73d3db12c1b6639cda7721bf3a7ee862012c")
+    version("7.0.1", sha256="a381729e32b6c2916a23544c04f342682d38b3f6e6c0cad3c25e900c3a7ef1a6")
     version("7.0.0", sha256="fa0d1c745d65d4d833e62cb183e23c2034dc7a35ec1a4977e808bdebb9b4fe60")
     version("6.2.0", sha256="cdf0c2179ae7a7931dba52463741cf59024198bbf9673bf08415bcb46344110f")
     version("4.0.1", sha256="14b38ef25cc136d71339ceeafb4856bb638d486614103453eccd323849267f20")
@@ -31,6 +34,9 @@ class Tinyxml2(CMakePackage):
 
     depends_on("c", type="build")
     depends_on("cxx", type="build")  # generated
+
+    # def url_for_version(self, version):
+
 
     def cmake_args(self):
         args = []
