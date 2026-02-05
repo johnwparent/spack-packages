@@ -2,19 +2,42 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
+from spack_repo.builtin.build_systems.cmake import CMakePackage
 
 from spack.package import *
 
 
-class Geographiclib(AutotoolsPackage):
-    """FIXME: Put a proper description of your package here."""
+class Geographiclib(CMakePackage):
+    """Geographic lib is a small C++ library for geographic data operations"""
 
-    # FIXME: Add a proper url for your package's homepage here.
-    homepage = "https://www.example.com"
+    homepage = "https://geographiclib.sourceforge.io/"
     url = "https://github.com/geographiclib/geographiclib"
 
     
     maintainers("johnwparent")
 
-    license("UNKNOWN", checked_by="github_user1")
+    license("MIT", checked_by="johnwparent")
+
+
+
+    variant("shared", default=True, description="Build shared libs")
+    variant("boost", default=False, description="Build with Boost support for NearestNeighbor")
+
+    resource(
+        name="geoid-data",
+        url="",
+        sha256="",
+        placement=join_path("share-geoid")
+    )
+    resource(
+        name="gravity-data",
+        url="",
+        sha256="",
+        placement=join_path("share-geoid")
+    )
+    resource(
+        name="magnetic-data",
+        url="",
+        sha256="",
+        placement=join_path("share-geoid")
+    )
