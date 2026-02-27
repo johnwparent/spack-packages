@@ -112,6 +112,30 @@ class Msvc(Package, CompilerPackage):
         if dependent_spec.name != "win-sdk" and "win-sdk" in dependent_spec:
             self.vcvars_call.sdk_ver = dependent_spec["win-sdk"].version.string
 
+        self._set_vcvars(env)
+
+        if self.cc:
+            env.set("CC", self.cc)
+        if self.cxx:
+            env.set("CXX", self.cxx)
+        if self.fortran:
+            env.set("FC", self.fortran)
+            env.set("F77", self.fortran)
+
+    def setup_run_environment(self, env):
+        if self.spec.satisfies("languages=c"):
+            env.set("CC", self.cc)
+
+        if self.spec.satisfies("languages=c++"):
+            env.set("CXX", self.cxx)
+
+        if self.spec.satisfies("languages=fortran"):
+            env.set("FC", self.fortran)
+            env.set("F77", self.fortran)
+
+        self._set_vcvars(env)
+
+    def _set_vcvars(self, env):
         out = self.msvc_compiler_environment()
         int_env = dict(
             (key, value)
@@ -124,14 +148,6 @@ class Msvc(Package, CompilerPackage):
                 env.set(env_var, int_env[env_var])
             else:
                 env.set_path(env_var, int_env[env_var].split(os.pathsep))
-
-        if self.cc:
-            env.set("CC", self.cc)
-        if self.cxx:
-            env.set("CXX", self.cxx)
-        if self.fortran:
-            env.set("FC", self.fortran)
-            env.set("F77", self.fortran)
 
     def init_msvc(self):
         # To use the MSVC compilers, VCVARS must be invoked
@@ -187,6 +203,9 @@ class Msvc(Package, CompilerPackage):
                 [VarsInvocation(oneapi_version_setvars), VarsInvocation(oneapi_root_setvars)]
             )
         self.msvc_compiler_environment = CmdCall(*env_cmds)
+
+    def setup_compile_test_environment(self, env):
+        self._set_vcvars(env)
 
     def _standard_flag(self, *, language: str, standard: str) -> str:
         flags = {
