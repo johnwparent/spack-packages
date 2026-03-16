@@ -462,7 +462,6 @@ class CMakeBuilder(BuilderWithDefaults):
                     f" `spack clean {pkg.name}`"
                 )
                 return
-
         options = self.std_cmake_args
         options += self.cmake_args()
         options.append(os.path.abspath(self.root_cmakelists_dir))
@@ -471,12 +470,10 @@ class CMakeBuilder(BuilderWithDefaults):
 
     def build(self, pkg: CMakePackage, spec: Spec, prefix: Prefix) -> None:
         """Make the build targets"""
-        with working_dir(self.build_directory):
-            if self.generator == "Unix Makefiles":
-                pkg.module.make(*self.build_targets)
-            elif self.generator == "Ninja":
-                self.build_targets.append("-v")
-                pkg.module.ninja(*self.build_targets)
+        build_targets = ["--build", self.build_directory] + self.build_targets
+        if self.generator == "Ninja":
+            self.build_targets.append("-v")
+        pkg.module.cmake(*build_targets)
 
     def install(self, pkg: CMakePackage, spec: Spec, prefix: Prefix) -> None:
         """Make the install targets"""

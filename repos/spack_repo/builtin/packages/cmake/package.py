@@ -31,6 +31,7 @@ class Cmake(Package):
     license("BSD-3-Clause")
 
     version("master", branch="master")
+    version("4.3.0-rc2", sha256="c01c6f7588c13fa36e1c4e6d43e00be57239f088f1450cfb2c61f7aff7ae23b9")
     version("4.2.3", sha256="7efaccde8c5a6b2968bad6ce0fe60e19b6e10701a12fce948c2bf79bac8a11e9")
     version("4.2.2", sha256="bbda94dd31636e89eb1cc18f8355f6b01d9193d7676549fba282057e8b730f58")
     version("4.2.0", sha256="4104e94657d247c811cb29985405a360b78130b5d51e7f6daceb2447830bd579")
@@ -386,6 +387,10 @@ class Cmake(Package):
                 filter_file("mpc++_r)", "mpc++_r mpiFCC)", f, string=True)
                 filter_file("mpifc)", "mpifc mpifrt)", f, string=True)
 
+    def setup_build_environment(self, env):
+        if self.spec.satisfies("@4.3:"):
+            env.set("CMAKE_CONFIG_DIR", self.spec.package.stage.path)
+
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
@@ -396,6 +401,8 @@ class Cmake(Package):
         # projects to use a newer CMake
         if self.spec.satisfies("@4:"):
             env.set("CMAKE_POLICY_VERSION_MINIMUM", "3.5")
+        if self.spec.satisfies("@4.3:"):
+            env.set("CMAKE_CONFIG_DIR", dependent_spec.package.stage.path)
 
     def setup_dependent_package(self, module, dependent_spec):
         """Called before cmake packages's install() methods."""
