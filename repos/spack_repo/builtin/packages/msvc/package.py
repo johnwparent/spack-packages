@@ -74,7 +74,11 @@ class Msvc(Package, CompilerPackage):
     def determine_variants(cls, exes, version_str):
         # MSVC uses same executable for both languages
         spec, extras = super().determine_variants(exes, version_str)
-        extras["compilers"]["c"] = extras["compilers"]["cxx"]
+        cxx = extras["compilers"].get("cxx", None)
+
+        if not cxx:
+            raise CompilerError("Msvc requires at least a C compiler")
+        extras["compilers"]["c"] = cxx
         # This depends on oneapi being processed before msvc
         # which is guarunteed from detection behavior.
         # Processing oneAPI tracks oneAPI installations within
@@ -199,6 +203,13 @@ class Msvc(Package, CompilerPackage):
             "c": {"11": "/std:c11", "17": "/std:c17"},
         }
         return flags[language][standard]
+
+    def path_grouper(self, path):
+        """Takes the path to an MSVC/OneAPI compiler and provides the base prefix"""
+        if "ifx" in path or "ifort" in path:
+            return path
+        
+        
 
     @property
     def short_msvc_version(self):
