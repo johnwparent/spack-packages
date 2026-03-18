@@ -77,7 +77,7 @@ class Msvc(Package, CompilerPackage):
         cxx = extras["compilers"].get("cxx", None)
 
         if not cxx:
-            raise CompilerError("Msvc requires at least a C compiler")
+            raise CompilerError("Msvc requires at least a Cxx compiler")
         extras["compilers"]["c"] = cxx
         # This depends on oneapi being processed before msvc
         # which is guarunteed from detection behavior.
@@ -136,6 +136,14 @@ class Msvc(Package, CompilerPackage):
         if self.fortran:
             env.set("FC", self.fortran)
             env.set("F77", self.fortran)
+
+    @property
+    def cc(self):
+        pass
+
+    @property
+    def cxx(self):
+        pass
 
     def init_msvc(self):
         # To use the MSVC compilers, VCVARS must be invoked
@@ -208,9 +216,8 @@ class Msvc(Package, CompilerPackage):
         """Takes the path to an MSVC/OneAPI compiler and provides the base prefix"""
         if "ifx" in path or "ifort" in path:
             return path
+        return os.path.realpath(os.path.join(os.path.dirname(path)), "..", "..")
         
-        
-
     @property
     def short_msvc_version(self):
         """This is the shorthand VCToolset version of form
