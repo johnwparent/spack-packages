@@ -4,6 +4,7 @@
 
 import os
 import re
+import sys
 
 from spack_repo.builtin.build_systems.generic import Package
 
@@ -64,14 +65,20 @@ class Rust(Package):
     depends_on("c", type="build")
     depends_on("cxx", type="build")
 
-    depends_on("curl+nghttp2")
-    depends_on("libgit2")
-    depends_on("libssh2")
+
     depends_on("ninja", type="build")
     depends_on("openssl")
-    depends_on("pkgconfig", type="build")
     depends_on("python", type="build")
     depends_on("zlib-api")
+
+
+    # platform specific dependencies
+    for plat in ["linux", "freebsd", "darwin"]:
+        with when(f"platform={plat}"):
+            depends_on("curl+nghttp2")
+            depends_on("pkgconfig", type="build")
+            depends_on("libgit2")
+            depends_on("libssh2")
 
     # cmake dependency comes from LLVM. Rust has their own fork of LLVM, with tags corresponding
     # to each Rust release, so it's easy to loop through tags and grep for "cmake_minimum_required"
@@ -145,14 +152,15 @@ class Rust(Package):
         module.cargo = Executable(os.path.join(self.spec.prefix.bin, "cargo"))
 
     def setup_build_environment(self, env: EnvironmentModifications) -> None:
-        # Manually instruct Cargo dependency libssh2-sys to build with
-        # the Spack installed libssh2 package. For more info see
-        # https://github.com/alexcrichton/ssh2-rs/issues/173
-        env.set("LIBSSH2_SYS_USE_PKG_CONFIG", "1")
+        if not sys.platform == "win32":
+            # Manually instruct Cargo dependency libssh2-sys to build with
+            # the Spack installed libssh2 package. For more info see
+            # https://github.com/alexcrichton/ssh2-rs/issues/173
+            env.set("LIBSSH2_SYS_USE_PKG_CONFIG", "1")
 
-        # Manually inject the path of ar for build.
-        ar = which("ar", required=True)
-        env.set("AR", ar.path)
+            # Manually inject the path of ar for build.
+            ar = which("ar", required=True)
+            env.set("AR", ar.path)
 
         # Manually inject the path of openssl's certs for build
         # if certs are present on system via Spack or via external
@@ -199,6 +207,7 @@ class Rust(Package):
         if self.spec.satisfies("@1.84:"):
             env.set("CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS", "fallback")
 
+
     def configure(self, spec, prefix):
         opts = []
 
@@ -215,10 +224,12 @@ class Rust(Package):
 
         # Build docs if specified by the +docs variant.
         opts.append(f"build.docs={str(spec.satisfies('+docs')).lower()}")
-
+        # Rust's build script checks for is_file, which will fail without the
+        # extension on Windows
+        ext = ".exe" if sys.platform == "win32" else ""
         # Set binary locations for bootstrap rustc and cargo.
-        opts.append(f"build.cargo={spec['rust-bootstrap'].prefix.bin.cargo}")
-        opts.append(f"build.rustc={spec['rust-bootstrap'].prefix.bin.rustc}")
+        opts.append(f"build.cargo={spec['rust-bootstrap'].prefix.bin.cargo}{ext}")
+        opts.append(f"build.rustc={spec['rust-bootstrap'].prefix.bin.rustc}{ext}")
 
         # Disable bootstrap LLVM download.
         opts.append("llvm.download-ci-llvm=false")
@@ -246,14 +257,32 @@ class Rust(Package):
         # non-nightly stable builds
         if not self.spec.satisfies("@=nightly"):
             flags.append("--release-channel=stable")
-
-        configure(*flags)
+        # on platforms that support autotools configure.py is
+        # driven by configure. Arguments are just piped directly to
+        # the underlying python script, configure just determines
+        # how to invoke python
+        # windows doesnt have autotools, and thanks to Spack, we
+        # know how to drive python. So just invoke the script
+        # directly
+        if sys.platform == "win32":
+            with working_dir(windows_sfn(self.stage.source_path)):
+                python("./src/bootstrap/configure.py", *flags)
+        else:
+            configure(*flags)
 
     def build(self, spec, prefix):
-        python("./x.py", "build", "-j", str(make_jobs))
+        if sys.platform == "win32":
+            with working_dir(windows_sfn(self.stage.source_path)):
+               python("./x.py", "build", "-j", str(make_jobs))
+        else: 
+            python("./x.py", "build", "-j", str(make_jobs))
 
     def install(self, spec, prefix):
-        python("./x.py", "install", "-j", str(make_jobs))
+        if sys.platform == "win32":
+            with working_dir(windows_sfn(self.stage.source_path)):
+                python("./x.py", "install", "-j", str(make_jobs))
+        else:
+            python("./x.py", "install", "-j", str(make_jobs))
 
     # known issue: https://github.com/rust-lang/rust/issues/132604
     unresolved_libraries = ["libz.so.*"]
