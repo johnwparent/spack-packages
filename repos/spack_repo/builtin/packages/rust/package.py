@@ -212,6 +212,7 @@ class Rust(Package):
         opts = []
 
         # Set prefix to install into spack prefix.
+        prefix = prefix if sys.platform != "win32" else windows_sfn(prefix)
         opts.append(f"install.prefix={prefix}")
 
         # Set relative path to put system configuration files
