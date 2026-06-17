@@ -834,7 +834,9 @@ class Cuda(Package):
     @property
     def cmake_prefix_paths(self):
         cmake_prefix_paths = [self.prefix]
-        if self.spec.satisfies("target=x86_64:"):
+        # the targets/ dir is a Linux-only toolkit layout; on Windows the CMake
+        # config files live at <prefix>\lib\cmake, found from the prefix alone
+        if self.spec.satisfies("platform=linux target=x86_64:"):
             cub_path = self.prefix.targets + "/x86_64-linux/lib/cmake"
             cmake_prefix_paths.append(cub_path)
         return cmake_prefix_paths
@@ -912,10 +914,17 @@ class Cuda(Package):
 
     @property
     def libs(self):
-        libs = find_libraries("libcudart", root=self.prefix, shared=True, recursive=True)
+        if self.spec.satisfies("platform=windows"):
+            # Windows ships cudart.lib (import library, in lib\x64) without a
+            # "lib" prefix; linking requires the .lib regardless of shared/static
+            libs = find_libraries(
+                "cudart", root=self.prefix, shared=True, recursive=True, runtime=False
+            )
+        else:
+            libs = find_libraries("libcudart", root=self.prefix, shared=True, recursive=True)
 
         filtered_libs = []
-        # CUDA 10.0 provides Compatability libraries for running newer versions
+        # CUDA 10.0 provides Compatibility libraries for running newer versions
         # of CUDA with older drivers. These do not work with newer drivers.
         for lib in libs:
             parts = lib.split(os.sep)
