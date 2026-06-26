@@ -30,13 +30,78 @@ class Msvc(Package, CompilerPackage):
 
     homepage = "https://visualstudio.microsoft.com/vs/features/cplusplus/"
 
-    has_code = False
+    # VS Build Tools bootstrappers — rolling releases, no stable SHA256 available
+    # Install with --no-checksum; pin to versioned CDN URLs later for reproducibility
+    version("2022", url="https://aka.ms/vs/17/release/vs_buildtools.exe", expand=False)
+    version("2019", url="https://aka.ms/vs/16/release/vs_buildtools.exe", expand=False)
+
+    variant("cli", default=False, when="@2019,2022", description="C++/CLI managed code support")
+    variant("atl", default=False, when="@2019,2022", description="Active Template Library")
+    variant(
+        "mfc",
+        default=False,
+        when="@2019,2022",
+        description="Microsoft Foundation Class Library (implies +atl)",
+    )
+    variant(
+        "clang_tools",
+        default=False,
+        when="@2019,2022",
+        description="Clang/LLVM toolset for Windows",
+    )
+    variant(
+        "v141",
+        default=False,
+        when="@2022",
+        description="Legacy MSVC v141 toolset for VS 2017 ABI compatibility",
+    )
 
     def install(self, spec, prefix):
-        raise InstallError(
-            "MSVC compilers are not installable with Spack, but can be "
-            "detected on a system where they are externally installed"
-        )
+        components = [
+            "Microsoft.VisualStudio.Workload.VCTools",
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "Microsoft.Component.VC.Runtime.UCRTSDK",
+        ]
+        if spec.satisfies("@2022"):
+            components.append("Microsoft.VisualStudio.Component.Windows11SDK.22621")
+        elif spec.satisfies("@2019"):
+            components.append("Microsoft.VisualStudio.Component.Windows10SDK.19041")
+
+        if spec.satisfies("+cli"):
+            components.append("Microsoft.VisualStudio.Component.VC.CLI.Support")
+        if spec.satisfies("+atl") and not spec.satisfies("+mfc"):
+            components.append("Microsoft.VisualStudio.Component.VC.ATL")
+        if spec.satisfies("+mfc"):
+            components.append("Microsoft.VisualStudio.Component.VC.ATLMFC")
+        if spec.satisfies("+clang_tools"):
+            components.append("Microsoft.VisualStudio.Component.VC.Llvm.ClangToolchain")
+        if spec.satisfies("+v141"):
+            components.append("Microsoft.VisualStudio.Component.VC.v141.x86.x64")
+
+        add_args = []
+        for component in components:
+            add_args += ["--add", component]
+
+        with working_dir(self.stage.source_path):
+            try:
+                Executable(self.stage.archive_file)(
+                    "--quiet",
+                    "--wait",
+                    "--norestart",
+                    "--nocache",
+                    "--installPath",
+                    str(prefix),
+                    *add_args,
+                )
+            except ProcessError as e:
+                # Exit code 3010 = reboot required but install succeeded
+                if e.returncode == 3010:
+                    tty.warn(
+                        "Visual Studio Build Tools installed successfully; "
+                        "a system reboot is required."
+                    )
+                else:
+                    raise
 
     compiler_languages = ["c", "cxx", "fortran"]
     c_names = ["cl"]
