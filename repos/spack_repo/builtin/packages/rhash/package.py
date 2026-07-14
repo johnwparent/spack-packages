@@ -18,10 +18,18 @@ class Rhash(MakefilePackage):
 
     license("0BSD")
 
+    version("1.4.6", sha256="9f6019cfeeae8ace7067ad22da4e4f857bb2cfa6c2deaa2258f55b2227ec937a")
+    version("1.4.5", sha256="6db837e7bbaa7c72c5fd43ca5af04b1d370c5ce32367b9f6a1f7b49b2338c09a")
+    version("1.4.4", sha256="8e7d1a8ccac0143c8fe9b68ebac67d485df119ea17a613f4038cda52f84ef52a")
+    version("1.4.3", sha256="1e40fa66966306920f043866cbe8612f4b939b033ba5e2708c3f41be257c8a3e")
     version("1.4.2", sha256="600d00f5f91ef04194d50903d3c79412099328c42f28ff43a0bdb777b00bec62")
     version("1.3.5", sha256="98e0688acae29e68c298ffbcdbb0f838864105f9b2bd8857980664435b1f1f2e")
 
     depends_on("c", type="build")  # generated
+
+    # No CMake support upstream; the Windows vcxproj only builds the executable,
+    # not librhash as a linkable library.
+    conflicts("platform=windows")
 
     # configure: fix clang detection on macOS
     # Patch accepted and merged upstream, remove on next release
