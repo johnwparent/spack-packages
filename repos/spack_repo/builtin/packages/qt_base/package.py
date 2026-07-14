@@ -237,7 +237,6 @@ class QtBase(QtPackage):
     depends_on("sqlite", when="+sql")
 
     with when("+gui"):
-        depends_on("fontconfig")
         depends_on("freetype")
         depends_on("harfbuzz")
         depends_on("jpeg")
@@ -253,6 +252,10 @@ class QtBase(QtPackage):
             depends_on("xcb-util-keysyms")
             depends_on("xcb-util-renderutil")
             depends_on("xcb-util-wm")
+            depends_on("fontconfig")
+        depends_on("fontconfig", when="platform=darwin")
+        depends_on("fontconfig", when="platform=freebsd")
+
 
     with when("+network"):
         depends_on("openssl")
