@@ -2,12 +2,16 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+import sys
+
+from spack_repo.builtin.build_systems import autotools, meson
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
+from spack_repo.builtin.build_systems.meson import MesonPackage
 
 from spack.package import *
 
 
-class Fontconfig(AutotoolsPackage):
+class Fontconfig(AutotoolsPackage, MesonPackage):
     """Fontconfig is a library for configuring/customizing font access"""
 
     homepage = "https://www.freedesktop.org/wiki/Software/fontconfig/"
@@ -29,19 +33,39 @@ class Fontconfig(AutotoolsPackage):
     # freetype2 21.0.15+ provided by freetype 2.8.1+
     depends_on("freetype@2.8.1:", when="@2.13:")
     depends_on("freetype")
-    depends_on("gperf", type="build", when="@2.11.1:")
     depends_on("libxml2@2.6:")
-    depends_on("pkgconfig", type="build")
-    depends_on("font-util")
-    depends_on("uuid", when="@2.13.1:")
     depends_on("python@3:", type="build", when="@2.13.93:")
+    depends_on("gperf", type="build", when="@2.11.1:")
+
+    for plat in ["linux", "darwin", "freebsd"]:
+        with when(f"platform={plat}"):
+            depends_on("pkgconfig", type="build")
+            depends_on("font-util")
+            depends_on("uuid", when="@2.13.1:")
 
     variant("pic", default=False, description="Enable position-independent code (PIC)")
+
+    build_system("autotools", "meson", default="meson" if sys.platform == "win32" else "autotools")
 
     def patch(self):
         """Make test/run-test.sh compatible with dash"""
         filter_file("SIGINT SIGTERM SIGABRT EXIT", "2 15 6 0", "test/run-test.sh")
 
+
+
+class AnyBuilder(BaseBuilder):
+    @run_after("install")
+    def system_fonts(self):
+        # point configuration file to system-install fonts
+        # gtk applications were failing to display text without this
+        config_file = join_path(self.prefix, "etc", "fonts", "fonts.conf")
+        filter_file(
+            '<dir prefix="xdg">fonts</dir>',
+            '<dir prefix="xdg">fonts</dir><dir>/usr/share/fonts</dir>',
+            config_file,
+        )
+
+class AutoToolsBuilder(AnyBuilder, autotools.AutotoolsBuilder):
     # Resolve known issue with tarballs 2.12.3 - 2.13.0 plus
     # https://gitlab.freedesktop.org/fontconfig/fontconfig/-/issues/10
     @run_before("configure")
@@ -72,14 +96,10 @@ class Fontconfig(AutotoolsPackage):
             args.append(f"CFLAGS={self.compiler.cc_pic_flag}")
 
         return args
+    
 
-    @run_after("install")
-    def system_fonts(self):
-        # point configuration file to system-install fonts
-        # gtk applications were failing to display text without this
-        config_file = join_path(self.prefix, "etc", "fonts", "fonts.conf")
-        filter_file(
-            '<dir prefix="xdg">fonts</dir>',
-            '<dir prefix="xdg">fonts</dir><dir>/usr/share/fonts</dir>',
-            config_file,
-        )
+class MesonBuilder(AnyBuilder, meson.MesonBuilder):
+    def meson_args(self):
+        return [
+            "-Dxml-backend=libxml2"
+        ]
