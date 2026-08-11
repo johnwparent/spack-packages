@@ -4,6 +4,7 @@
 import collections.abc
 import enum
 import os
+import pathlib
 import re
 from typing import Optional, Tuple
 
@@ -19,9 +20,9 @@ def spec_uses_toolchain(spec):
 
 
 def cmake_cache_path(name, value, comment="", force=False):
-    """Generate a string for a cmake cache variable"""
+    """Generate a string for a cmake cache variable representing a path"""
     force_str = " FORCE" if force else ""
-    return 'set({0} "{1}" CACHE PATH "{2}"{3})\n'.format(name, value, comment, force_str)
+    return 'set({0} "{1}" CACHE PATH "{2}"{3})\n'.format(name, pathlib.Path(value).as_posix(), comment, force_str)
 
 
 def cmake_cache_string(name, value, comment="", force=False):
