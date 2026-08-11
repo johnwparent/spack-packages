@@ -13,6 +13,10 @@ from spack.package import Prefix, Spec, depends_on, install, mkdirp, run_after, 
 from .cmake import CMakeBuilder, CMakePackage
 
 
+def to_posix(path: os.PathLike) -> str:
+    """Returns a path's posix equivalent"""
+    return pathlib.Path(path).as_posix()
+
 def spec_uses_toolchain(spec):
     gcc_toolchain_regex = re.compile(".*gcc-toolchain.*")
     using_toolchain = list(filter(gcc_toolchain_regex.match, spec.compiler_flags["cxxflags"]))
@@ -22,7 +26,7 @@ def spec_uses_toolchain(spec):
 def cmake_cache_path(name, value, comment="", force=False):
     """Generate a string for a cmake cache variable representing a path"""
     force_str = " FORCE" if force else ""
-    return 'set({0} "{1}" CACHE PATH "{2}"{3})\n'.format(name, pathlib.Path(value).as_posix(), comment, force_str)
+    return 'set({0} "{1}" CACHE PATH "{2}"{3})\n'.format(name, to_posix(value), comment, force_str)
 
 
 def cmake_cache_string(name, value, comment="", force=False):
@@ -41,7 +45,7 @@ def cmake_cache_option(name, boolean_value, comment="", force=False):
 
 def cmake_cache_filepath(name, value, comment=""):
     """Generate a string for a cmake cache variable of type FILEPATH"""
-    return 'set({0} "{1}" CACHE FILEPATH "{2}")\n'.format(name, value, comment)
+    return 'set({0} "{1}" CACHE FILEPATH "{2}")\n'.format(name, to_posix(value), comment)
 
 
 class CachedCMakeBuilder(CMakeBuilder):
@@ -343,13 +347,13 @@ class CachedCMakeBuilder(CMakeBuilder):
 
     def std_initconfig_entries(self):
         cmake_prefix_path_env = os.environ["CMAKE_PREFIX_PATH"]
-        cmake_prefix_path = cmake_prefix_path_env.replace(os.pathsep, ";")
+        cmake_prefix_path = cmake_prefix_path_env.replace(os.pathsep, ";").replace("\\", "/")
         complete_rpath_list = ";".join(
             [
-                self.pkg.spec.prefix.lib,
-                self.pkg.spec.prefix.lib64,
-                *os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").split(":"),
-                *os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").split(":"),
+                to_posix(self.pkg.spec.prefix.lib),
+                to_posix(self.pkg.spec.prefix.lib64),
+                *os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").replace("\\", "/").split(":"),
+                *os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").replace("\\", "/").split(":"),
             ]
         )
         return [
