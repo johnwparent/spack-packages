@@ -37,7 +37,7 @@ class Mpdecimal(AutotoolsPackage, NMakePackage):
     @property
     def libs(self):
         if self.spec.satisfies("platform=windows"):
-            # only an import library is generated for Windows 
+            # only an import library is generated for Windows
             # due to symbol visibility
             return find_libraries("libmpdec*", root=self.prefix.lib, runtime=False)
         # Suffix is .so, even on macOS
