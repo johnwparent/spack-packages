@@ -1,0 +1,29 @@
+spack:
+  view: false
+  include:
+  - ../../.ci/gitlab/
+
+  packages:
+    all:
+      variants:
+      - build_type=MinSizeRel
+      require:
+      - target=aarch64
+  concretizer:
+    unify: true
+    reuse: false
+  specs:
+    # spack developer tools
+    # style
+    - py-pytest@9.0.3
+    - py-ruff@0.15.0
+    - py-ty@0.0.20
+
+  ci:
+    pipeline-gen:
+    - build-job:
+        variables:
+          CI_GPG_KEY_ROOT: /etc/protected-runner
+
+  cdash:
+    build-group: Spack Development Tools Darwin
