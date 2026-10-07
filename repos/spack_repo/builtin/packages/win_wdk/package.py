@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
 
-import glob
 import os
 import re
 
 from spack_repo.builtin.build_systems.generic import Package
+from spack_repo.builtin.packages.win_sdk.package import check_kit_files, install_kit_from_layout
 
 from spack.package import *
 
@@ -128,47 +128,23 @@ class WinWdk(Package):
     ) -> None:
         # This points to all core build extensions needed to build
         # drivers on Windows
-        env.set("WDKContentRoot", self.prefix)
+        root = self.prefix if self.spec.external else self.kits_root + os.sep
+        env.set("WDKContentRoot", root)
 
-    @run_before("install")
-    def rename_downloaded_executable(self):
-        """WGL download is named by fetch based on name derived from Link redirection
-        This name is not properly formated so that Windows understands it as an executable
-        We rename so as to allow Windows to run the WGL installer"""
-        installer = glob.glob(os.path.join(self.stage.source_path, "linkid=**"))
-        fetch_size = len(installer)
-        if fetch_size > 1:
-            raise RuntimeError(
-                "Fetch has failed, ambiguous behavior, fetch has pulled too much. "
-                "Unable to determine installer path from:\n%s" % "\n".join(installer)
-            )
-        elif fetch_size < 1:
-            raise RuntimeError(
-                "Fetch has failed, nothing was fetched from:\n%s" % "\n".join(installer)
-            )
-        installer = installer[0]
-        os.rename(installer, os.path.join(self.stage.source_path, "wdksetup.exe"))
+    @property
+    def kits_root(self):
+        """Equivalent of the system's KitsRoot10 for this WDK"""
+        return os.path.join(self.prefix, "Windows Kits", "10")
 
     def install(self, spec, prefix):
-        install_args = ["/features", "+", "/quiet", "/installpath", self.prefix]
-        with working_dir(self.stage.source_path):
-            try:
-                Executable("wdksetup.exe")(*install_args)
-            except ProcessError as pe:
-                reg = WindowsRegistryView(
-                    "SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots",
-                    root_key=HKEY.HKEY_LOCAL_MACHINE,
-                )
-                if not reg:
-                    # No Kits are available, failure was genuine
-                    raise pe
-                else:
-                    versions = [str(subkey) for subkey in reg.get_subkeys()]
-                    versions = ",".join(versions) if len(versions) > 1 else versions[0]
-                    plural = "s" if len(versions) > 1 else ""
-                    raise InstallError(
-                        "Cannot install WDK version %s. "
-                        "Version%s %s already present on system."
-                        "Please run `spack external find win-wdk` to use the WDK"
-                        % (self.version, plural, versions)
-                    )
+        install_kit_from_layout(self, "wdksetup.exe", ["+"])
+
+        ver = f"{self.version}.0"
+        plat = spec.variants["plat"].value
+        check_kit_files(
+            self.kits_root,
+            [
+                os.path.join("Include", ver, "km", "ntddk.h"),
+                os.path.join("Lib", ver, "km", plat, "ntoskrnl.lib"),
+            ],
+        )

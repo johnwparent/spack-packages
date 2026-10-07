@@ -99,7 +99,13 @@ class Msvc(Package, CompilerPackage):
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
-        self.init_msvc()
+        sdk = None
+        if dependent_spec.name != "win-sdk" and "win-sdk" in dependent_spec:
+            sdk = dependent_spec["win-sdk"]
+        # vcvars only finds SDKs registered with the system, which a Spack installed
+        # SDK is not, so set up VS without an SDK and add the SDK's environment after
+        spack_sdk = sdk if sdk is not None and not sdk.external else None
+        self.init_msvc(skip_sdk=spack_sdk is not None)
         # Set the build environment variables for spack. Just using
         # subprocess.call() doesn't work since that operates in its own
         # environment which is destroyed (along with the adjusted variables)
@@ -109,8 +115,8 @@ class Msvc(Package, CompilerPackage):
 
         # vcvars can target specific sdk versions, force it to pick up concretized sdk
         # version, if needed by spec
-        if dependent_spec.name != "win-sdk" and "win-sdk" in dependent_spec:
-            self.vcvars_call.sdk_ver = dependent_spec["win-sdk"].version.string
+        if sdk is not None and spack_sdk is None:
+            self.vcvars_call.sdk_ver = sdk.version.string
 
         out = self.msvc_compiler_environment()
         int_env = dict(
@@ -125,6 +131,9 @@ class Msvc(Package, CompilerPackage):
             else:
                 env.set_path(env_var, int_env[env_var].split(os.pathsep))
 
+        if spack_sdk is not None:
+            spack_sdk.package.setup_msvc_environment(env)
+
         if self.cc:
             env.set("CC", self.cc)
         if self.cxx:
@@ -133,7 +142,7 @@ class Msvc(Package, CompilerPackage):
             env.set("FC", self.fortran)
             env.set("F77", self.fortran)
 
-    def init_msvc(self):
+    def init_msvc(self, skip_sdk=False):
         # To use the MSVC compilers, VCVARS must be invoked
         # VCVARS is located at a fixed location, referencable
         # idiomatically by the following relative path from the
@@ -151,7 +160,12 @@ class Msvc(Package, CompilerPackage):
             arch = "amd64"
 
         msvc_version = Version(re.search(Msvc.compiler_version_regex, self.cc).group(1))
-        self.vcvars_call = VCVarsInvocation(vcvars_script_path, arch, msvc_version)
+        if skip_sdk:
+            # vcvarsall cannot be told to skip SDK setup, VsDevCmd can
+            vsdevcmd_path = os.path.join(self.vs_root, "Common7", "Tools", "VsDevCmd.bat")
+            self.vcvars_call = VsDevCmdInvocation(vsdevcmd_path, msvc_version)
+        else:
+            self.vcvars_call = VCVarsInvocation(vcvars_script_path, arch, msvc_version)
         env_cmds.append(self.vcvars_call)
 
         def get_oneapi_root(pth: str):
@@ -347,6 +361,22 @@ class VCVarsInvocation(VarsInvocation):
     def command_str(self):
         script = super(VCVarsInvocation, self).command_str()
         return f"{script} {self.arch} {self.sdk_ver} {self.vcvars_ver}"
+
+
+class VsDevCmdInvocation(VarsInvocation):
+    """VS environment without a Windows SDK, for use with an SDK not known to the system"""
+
+    def __init__(self, script, msvc_version):
+        super().__init__(script)
+        self._msvc_version = msvc_version
+
+    def command_str(self):
+        script = super().command_str()
+        # x64 host and target, matching vcvars64.bat
+        return (
+            f"{script} -arch=x64 -host_arch=x64 -winsdk=none "
+            f"-vcvars_ver={self._msvc_version} -no_logo"
+        )
 
 
 FC_PATH = {}

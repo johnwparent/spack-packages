@@ -5,7 +5,9 @@
 
 import glob
 import os
+import platform
 import re
+import subprocess
 
 from spack_repo.builtin.build_systems.generic import Package
 
@@ -15,7 +17,8 @@ from spack.package import *
 class WinSdk(Package):
     """
     Windows Desktop C++ development SDK
-    Installs from the Microsoft binary bootstrapper into a Spack prefix.
+    Detectable as an external, or installable into a Spack prefix
+    without elevation or registering the SDK with the system.
     """
 
     homepage = "https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/"
@@ -138,33 +141,21 @@ class WinSdk(Package):
             variants.append("plat=%s" % arch)
         return variants
 
-    @run_before("install")
-    def rename_downloaded_executable(self):
-        """SDK bootstrapper downloaded via link redirect may have a non-.exe name;
-        rename so Windows can execute it."""
-        # Direct CDN URLs already produce the correct filename; nothing to do
-        for known_name in ("winsdksetup.exe", "sdksetup.exe"):
-            if os.path.exists(os.path.join(self.stage.source_path, known_name)):
-                return
-        installer = glob.glob(os.path.join(self.stage.source_path, "linkid=*"))
-        fetch_size = len(installer)
-        if fetch_size > 1:
-            raise RuntimeError(
-                "Fetch has failed, ambiguous behavior, fetch has pulled too much. "
-                "Unable to determine installer path from:\n%s" % "\n".join(installer)
-            )
-        elif fetch_size < 1:
-            raise RuntimeError(
-                "Fetch has failed, nothing was fetched from:\n%s" % "\n".join(installer)
-            )
-        os.rename(installer[0], os.path.join(self.stage.source_path, "winsdksetup.exe"))
+    @property
+    def kits_root(self):
+        """Equivalent of the system's KitsRoot10 for this SDK"""
+        return os.path.join(self.prefix, "Windows Kits", "10")
+
+    @property
+    def kit_version(self):
+        """Version as used in the SDK's Include/Lib/bin directory names"""
+        return f"{self.version}.0"
 
     def install(self, spec, prefix):
-        # 10.0.14393 and 10.0.10586 use the older sdksetup.exe with /features +
-        # Newer versions use winsdksetup.exe with architecture-specific OptionId features
+        # 10.0.14393 and 10.0.10586 use the older sdksetup.exe, which only takes "+" (all)
         if spec.satisfies("@:10.0.14393"):
-            installer_exe = "sdksetup.exe"
-            install_args = ["/features", "+", "/quiet", "/norestart", "/installpath", self.prefix]
+            bootstrapper = "sdksetup.exe"
+            features = ["+"]
         else:
             plat_to_feature = {
                 "x64": "OptionId.DesktopCPPx64",
@@ -172,33 +163,99 @@ class WinSdk(Package):
                 "arm": "OptionId.DesktopCPParm",
                 "arm64": "OptionId.DesktopCPParm64",
             }
-            installer_exe = "winsdksetup.exe"
-            feature = plat_to_feature[spec.variants["plat"].value]
-            install_args = [
-                "/features",
-                feature,
-                "/quiet",
-                "/norestart",
-                "/installpath",
-                self.prefix,
-            ]
-        with working_dir(self.stage.source_path):
-            try:
-                Executable(installer_exe)(*install_args)
-            except ProcessError as pe:
-                reg = WindowsRegistryView(
-                    "SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots",
-                    root_key=HKEY.HKEY_LOCAL_MACHINE,
-                )
-                if not reg:
-                    raise pe
-                else:
-                    versions = [str(subkey) for subkey in reg.get_subkeys()]
-                    versions = ",".join(versions) if len(versions) > 1 else versions[0]
-                    plural = "s" if len(versions) > 1 else ""
-                    raise InstallError(
-                        "Cannot install Windows SDK version %s. "
-                        "Version%s %s already present on system. "
-                        "Please run `spack external find win-sdk` to use the SDK"
-                        % (self.version, plural, versions)
-                    )
+            bootstrapper = "winsdksetup.exe"
+            features = [plat_to_feature[spec.variants["plat"].value]]
+        install_kit_from_layout(self, bootstrapper, features)
+
+        plat = spec.variants["plat"].value
+        check_kit_files(
+            self.kits_root,
+            [
+                os.path.join("Include", self.kit_version, "um", "Windows.h"),
+                os.path.join("Include", self.kit_version, "ucrt", "stdio.h"),
+                os.path.join("Lib", self.kit_version, "um", plat, "kernel32.lib"),
+                os.path.join("Lib", self.kit_version, "ucrt", plat, "ucrt.lib"),
+            ],
+        )
+
+    def setup_msvc_environment(self, env: EnvironmentModifications) -> None:
+        """Add this SDK to an MSVC environment created without one (``VsDevCmd -winsdk=none``)
+
+        This mirrors what VS's winsdk.bat sets for an SDK registered with the system, which
+        is the only place vcvars will look for one."""
+        root = self.kits_root + os.sep
+        ver = self.kit_version
+        plat = self.spec.variants["plat"].value
+        host = "arm64" if platform.machine().lower() == "arm64" else "x64"
+
+        env.set("WindowsSdkDir", root)
+        env.set("WindowsSDKVersion", ver + os.sep)
+        env.set("WindowsSDKLibVersion", ver + os.sep)
+        env.set("WindowsSdkBinPath", os.path.join(root, "bin") + os.sep)
+        env.set("WindowsSdkVerBinPath", os.path.join(root, "bin", ver) + os.sep)
+        env.set("UniversalCRTSdkDir", root)
+        env.set("UCRTVersion", ver)
+        for sub in ("ucrt", "um", "shared", "winrt", "cppwinrt"):
+            env.append_path("INCLUDE", os.path.join(root, "Include", ver, sub))
+        for sub in ("ucrt", "um"):
+            env.append_path("LIB", os.path.join(root, "Lib", ver, sub, plat))
+        env.append_path("LIBPATH", os.path.join(root, "UnionMetadata", ver))
+        env.append_path("LIBPATH", os.path.join(root, "References", ver))
+        env.prepend_path("PATH", os.path.join(root, "bin", host))
+        env.prepend_path("PATH", os.path.join(root, "bin", ver, host))
+
+
+def install_kit_from_layout(pkg, bootstrapper: str, features: List[str]) -> None:
+    """Install a Windows Kit (SDK or WDK) into ``pkg.prefix`` without running its installer
+
+    The installer requires elevation, registers the Kit machine-wide, and installs every Kit
+    into the single registered Kits root no matter where it is told to go. Instead the
+    bootstrapper is only used to download the Kit's MSIs (``/layout``) and each MSI is
+    extracted with an administrative install (``msiexec /a``), which writes files only.
+    Neither step needs elevation or touches the registry.
+    """
+    stage = pkg.stage.source_path
+    layout = os.path.join(stage, "layout")
+    Executable(os.path.join(stage, bootstrapper))(
+        "/layout",
+        layout,
+        "/features",
+        *features,
+        "/quiet",
+        "/norestart",
+        "/log",
+        os.path.join(stage, "layout.log"),
+    )
+
+    msis = sorted(glob.glob(os.path.join(layout, "Installers", "*.msi")))
+    if not msis:
+        raise InstallError(f"{bootstrapper} /layout produced no MSIs, see {stage}\\layout.log")
+
+    log_dir = os.path.join(stage, "msi-logs")
+    mkdirp(log_dir)
+    failed = []
+    for msi in msis:
+        name = os.path.basename(msi)
+        # msiexec parses its own command line and requires PROPERTY="value" quoting,
+        # which list based argument quoting cannot produce for paths with spaces.
+        # Extract straight into the prefix: Kit file paths run deep enough that a longer
+        # root, like the stage's, pushes some past MAX_PATH
+        cmd = (
+            f'msiexec.exe /a "{msi}" /qn TARGETDIR="{pkg.prefix}" '
+            f'/le "{os.path.join(log_dir, name)}.log"'
+        )
+        if subprocess.run(cmd).returncode != 0:
+            failed.append(name)
+        # Administrative installs leave a copy of the MSI in TARGETDIR
+        force_remove(os.path.join(pkg.prefix, name))
+
+    # Some MSIs ship only WinRT/IntelliSense metadata with paths too long for any
+    # reasonable prefix; installs are validated by the files consumers need instead
+    if failed:
+        tty.warn(f"Failed to extract (logs in {log_dir}):\n    " + "\n    ".join(failed))
+
+
+def check_kit_files(root: str, files: List[str]) -> None:
+    missing = [f for f in files if not os.path.exists(os.path.join(root, f))]
+    if missing:
+        raise InstallError(f"Kit install in {root} is missing:\n    " + "\n    ".join(missing))
