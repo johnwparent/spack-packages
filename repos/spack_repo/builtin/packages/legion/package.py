@@ -32,6 +32,7 @@ class Legion(CMakePackage, CudaPackage, ROCmPackage):
 
     maintainers("pmccormick", "streichler", "elliottslaughter", "rbberger")
     tags = ["e4s"]
+    version("26.09.1", tag="legion-26.09.1", commit="aea587e157abff12f7d089c81f29cd3a8b993a2b")
     version("26.09.0", tag="legion-26.09.0", commit="baf03d794b14587f800e5d65d1bcda2c6aaa3671")
     version("26.06.0", tag="legion-26.06.0", commit="c1096661a42f970904881366a94ff26c686fde61")
     version("26.03.0", tag="legion-26.03.0", commit="b95c7bfdbdf564eac57f9ace73c394acea4ac216")
@@ -446,8 +447,17 @@ class Legion(CMakePackage, CudaPackage, ROCmPackage):
         if spec.satisfies("+rocm"):
             options.append(self.define("Legion_USE_HIP", True))
             options.append(self.define("Legion_GPU_REDUCTIONS", True))
-            options.append(from_variant("Legion_HIP_TARGET", "hip_target"))
-            options.append(from_variant("Legion_HIP_ARCH", "amdgpu_target"))
+            if spec.satisfies("@26.09.0:"):
+                hip_target = self.spec.variants["hip_target"].value
+                hip_platform = {
+                    "ROCM": "amd",
+                    "CUDA": "nvidia",
+                }
+                options.append(self.define("CMAKE_HIP_PLATFORM", hip_platform[hip_target]))
+                options.append(from_variant("CMAKE_HIP_ARCHITECTURES", "amdgpu_target"))
+            else:
+                options.append(from_variant("Legion_HIP_TARGET", "hip_target"))
+                options.append(from_variant("Legion_HIP_ARCH", "amdgpu_target"))
             options.append(from_variant("Legion_HIJACK_HIP", "hip_hijack"))
             options.append(from_variant("CMAKE_HIP_STANDARD", "cxxstd"))
             if spec.satisfies("@23.03.0:23.12.0"):
