@@ -18,10 +18,21 @@ spack:
     static_analysis: true
 
   specs:
-  - py-pytest@9.0.3
-  - py-ruff@0.15.0
-  - py-ty@0.0.20
-
+  # spack developer tools
+  # pinned to versions CI uses
+  - group: rust
+    specs:
+    - rust@1.95:
+  - group: dev-rust
+    needs: [rust]
+    specs:
+    - py-ruff@0.16.0 ^python@3.10
+    - py-ruff@0.16.0 ^python@3.14
+    - py-ty@0.0.72 ^python@3.10
+    - py-ty@0.0.72 ^python@3.14
+  - group: dev-python
+    specs:
+    - py-pytest@9.0.3
   ci:
     pipeline-gen:
     - build-job:
