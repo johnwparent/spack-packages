@@ -33,7 +33,7 @@ def cmake_cache_path(name, value, comment="", force=False):
 def cmake_cache_string(name, value, comment="", force=False):
     """Generate a string for a cmake cache variable"""
     force_str = " FORCE" if force else ""
-    return f'set({0} "{1}" CACHE STRING "{2}"{3})\n'.format(name, value, comment, force_str)
+    return f'set({name} "{value}" CACHE STRING "{comment}"{force_str})\n'
 
 
 def cmake_cache_option(name, boolean_value, comment="", force=False):
