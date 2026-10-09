@@ -10,10 +10,10 @@ from typing import Optional, Tuple
 
 from spack.package import Prefix, Spec, depends_on, install, mkdirp, run_after, tty, which_string
 
-from .cmake import CMakeBuilder, CMakePackage
+from .cmake import CMakeBuilder, CMakePackage, define_path
 
 
-def to_posix(path: os.PathLike) -> str:
+def posix_path(path: os.PathLike) -> str:
     """Returns a path's posix equivalent"""
     return pathlib.Path(path).as_posix()
 
@@ -24,15 +24,15 @@ def spec_uses_toolchain(spec):
 
 
 def cmake_cache_path(name, value, comment="", force=False):
-    """Generate a string for a cmake cache variable representing a path"""
+    """Generate a string for a cmake cache variable representing a directory"""
     force_str = " FORCE" if force else ""
-    return 'set({0} "{1}" CACHE PATH "{2}"{3})\n'.format(name, to_posix(value), comment, force_str)
+    return f'set({name} "{posix_path(value)}" CACHE PATH "{comment}"{force_str})\n'
 
 
 def cmake_cache_string(name, value, comment="", force=False):
     """Generate a string for a cmake cache variable"""
     force_str = " FORCE" if force else ""
-    return 'set({0} "{1}" CACHE STRING "{2}"{3})\n'.format(name, value, comment, force_str)
+    return f'set({0} "{1}" CACHE STRING "{2}"{3})\n'.format(name, value, comment, force_str)
 
 
 def cmake_cache_option(name, boolean_value, comment="", force=False):
@@ -40,12 +40,12 @@ def cmake_cache_option(name, boolean_value, comment="", force=False):
 
     value = "ON" if boolean_value else "OFF"
     force_str = " FORCE" if force else ""
-    return 'set({0} {1} CACHE BOOL "{2}"{3})\n'.format(name, value, comment, force_str)
+    return f'set({name} {value} CACHE BOOL "{comment}"{force_str})\n'
 
 
 def cmake_cache_filepath(name, value, comment=""):
     """Generate a string for a cmake cache variable of type FILEPATH"""
-    return 'set({0} "{1}" CACHE FILEPATH "{2}")\n'.format(name, to_posix(value), comment)
+    return f'set({name} "{posix_path(value)}" CACHE FILEPATH "{comment}")\n'
 
 
 class CachedCMakeBuilder(CMakeBuilder):
@@ -75,7 +75,7 @@ class CachedCMakeBuilder(CMakeBuilder):
 
     @property
     def cache_path(self):
-        return os.path.join(self.pkg.stage.source_path, self.cache_name)
+        return posix_path(os.path.join(self.pkg.stage.source_path, self.cache_name))
 
     # Implement a version of the define_from_variant for Cached packages
     def define_cmake_cache_from_variant(self, cmake_var, variant=None, comment=""):
@@ -113,8 +113,8 @@ class CachedCMakeBuilder(CMakeBuilder):
 
         # Fortran compiler is optional
         if "FC" in os.environ and self.spec.satisfies("%fortran"):
-            spack_fc_entry = cmake_cache_path("CMAKE_Fortran_COMPILER", os.environ["FC"])
-            system_fc_entry = cmake_cache_path(
+            spack_fc_entry = cmake_cache_filepath("CMAKE_Fortran_COMPILER", os.environ["FC"])
+            system_fc_entry = cmake_cache_filepath(
                 "CMAKE_Fortran_COMPILER", self.spec["fortran"].package.fortran
             )
         else:
@@ -128,12 +128,12 @@ class CachedCMakeBuilder(CMakeBuilder):
             "# Compiler Spec: {0}".format(spec.compiler),
             "#------------------{0}".format("-" * 60),
             "if(DEFINED ENV{SPACK_CC})\n",
-            "  " + cmake_cache_path("CMAKE_C_COMPILER", os.environ["CC"]),
-            "  " + cmake_cache_path("CMAKE_CXX_COMPILER", os.environ["CXX"]),
+            "  " + cmake_cache_filepath("CMAKE_C_COMPILER", os.environ["CC"]),
+            "  " + cmake_cache_filepath("CMAKE_CXX_COMPILER", os.environ["CXX"]),
             "  " + spack_fc_entry,
             "else()\n",
-            "  " + cmake_cache_path("CMAKE_C_COMPILER", self.spec["c"].package.cc),
-            "  " + cmake_cache_path("CMAKE_CXX_COMPILER", self.spec["cxx"].package.cxx),
+            "  " + cmake_cache_filepath("CMAKE_C_COMPILER", self.spec["c"].package.cc),
+            "  " + cmake_cache_filepath("CMAKE_CXX_COMPILER", self.spec["cxx"].package.cxx),
             "  " + system_fc_entry,
             "endif()\n",
         ]
@@ -266,9 +266,9 @@ class CachedCMakeBuilder(CMakeBuilder):
             # starting with cmake 3.10, FindMPI expects MPIEXEC_EXECUTABLE
             # vs the older versions which expect MPIEXEC
             if spec["cmake"].satisfies("@3.10:"):
-                entries.append(cmake_cache_path("MPIEXEC_EXECUTABLE", mpiexec))
+                entries.append(cmake_cache_filepath("MPIEXEC_EXECUTABLE", mpiexec))
             else:
-                entries.append(cmake_cache_path("MPIEXEC", mpiexec))
+                entries.append(cmake_cache_filepath("MPIEXEC", mpiexec))
 
         # Determine MPIEXEC_NUMPROC_FLAG
         entries.append(cmake_cache_string("MPIEXEC_NUMPROC_FLAG", self.get_mpi_exec_num_proc()))
@@ -292,8 +292,8 @@ class CachedCMakeBuilder(CMakeBuilder):
 
             cudatoolkitdir = spec["cuda"].prefix
             entries.append(cmake_cache_path("CUDAToolkit_ROOT", cudatoolkitdir))
-            entries.append(cmake_cache_path("CMAKE_CUDA_COMPILER", "${CUDAToolkit_ROOT}/bin/nvcc"))
-            entries.append(cmake_cache_path("CMAKE_CUDA_HOST_COMPILER", "${CMAKE_CXX_COMPILER}"))
+            entries.append(cmake_cache_filepath("CMAKE_CUDA_COMPILER", "${CUDAToolkit_ROOT}/bin/nvcc"))
+            entries.append(cmake_cache_filepath("CMAKE_CUDA_HOST_COMPILER", "${CMAKE_CXX_COMPILER}"))
             # Include the deprecated CUDA_TOOLKIT_ROOT_DIR for supporting BLT packages
             entries.append(cmake_cache_path("CUDA_TOOLKIT_ROOT_DIR", cudatoolkitdir))
 
@@ -347,20 +347,20 @@ class CachedCMakeBuilder(CMakeBuilder):
 
     def std_initconfig_entries(self):
         cmake_prefix_path_env = os.environ["CMAKE_PREFIX_PATH"]
-        cmake_prefix_path = cmake_prefix_path_env.replace(os.pathsep, ";").replace("\\", "/")
+        cmake_prefix_path = ";".join([posix_path(x) for x in cmake_prefix_path_env.split(os.pathsep)])
         complete_rpath_list = ";".join(
             [
-                to_posix(self.pkg.spec.prefix.lib),
-                to_posix(self.pkg.spec.prefix.lib64),
-                *os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").replace("\\", "/").split(":"),
-                *os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").replace("\\", "/").split(":"),
+                posix_path(self.pkg.spec.prefix.lib),
+                posix_path(self.pkg.spec.prefix.lib64),
+                *(posix_path(x) for x in os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").split(":")),
+                *(posix_path(x) for x in os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").split(":")),
             ]
         )
         return [
             "#------------------{0}".format("-" * 60),
             "# !!!! This is a generated file, edit at own risk !!!!",
             "#------------------{0}".format("-" * 60),
-            "# CMake executable path: {0}".format(self.pkg.spec["cmake"].command.path),
+            "# CMake executable path: {0}".format(posix_path(self.pkg.spec["cmake"].command.path)),
             "#------------------{0}\n".format("-" * 60),
             cmake_cache_string("CMAKE_PREFIX_PATH", cmake_prefix_path),
             cmake_cache_string("CMAKE_INSTALL_RPATH_USE_LINK_PATH", "ON"),
