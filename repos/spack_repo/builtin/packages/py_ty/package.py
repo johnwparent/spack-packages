@@ -42,6 +42,7 @@ class PyTy(PythonPackage):
         depends_on("c")
         depends_on("gmake")
         # ruff/Cargo.toml
+        depends_on("rust@1.97:", when="@0.0.85:")
         depends_on("rust@1.95:", when="@0.0.60:")
         depends_on("rust@1.92:", when="@0.0.25:")
         depends_on("rust@1.91:", when="@0.0.15:")
