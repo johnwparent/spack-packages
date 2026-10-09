@@ -10,12 +10,13 @@ from typing import Optional, Tuple
 
 from spack.package import Prefix, Spec, depends_on, install, mkdirp, run_after, tty, which_string
 
-from .cmake import CMakeBuilder, CMakePackage, define_path
+from .cmake import CMakeBuilder, CMakePackage
 
 
 def posix_path(path: os.PathLike) -> str:
     """Returns a path's posix equivalent"""
     return pathlib.Path(path).as_posix()
+
 
 def spec_uses_toolchain(spec):
     gcc_toolchain_regex = re.compile(".*gcc-toolchain.*")
@@ -292,8 +293,12 @@ class CachedCMakeBuilder(CMakeBuilder):
 
             cudatoolkitdir = spec["cuda"].prefix
             entries.append(cmake_cache_path("CUDAToolkit_ROOT", cudatoolkitdir))
-            entries.append(cmake_cache_filepath("CMAKE_CUDA_COMPILER", "${CUDAToolkit_ROOT}/bin/nvcc"))
-            entries.append(cmake_cache_filepath("CMAKE_CUDA_HOST_COMPILER", "${CMAKE_CXX_COMPILER}"))
+            entries.append(
+                cmake_cache_filepath("CMAKE_CUDA_COMPILER", "${CUDAToolkit_ROOT}/bin/nvcc")
+            )
+            entries.append(
+                cmake_cache_filepath("CMAKE_CUDA_HOST_COMPILER", "${CMAKE_CXX_COMPILER}")
+            )
             # Include the deprecated CUDA_TOOLKIT_ROOT_DIR for supporting BLT packages
             entries.append(cmake_cache_path("CUDA_TOOLKIT_ROOT_DIR", cudatoolkitdir))
 
@@ -347,13 +352,21 @@ class CachedCMakeBuilder(CMakeBuilder):
 
     def std_initconfig_entries(self):
         cmake_prefix_path_env = os.environ["CMAKE_PREFIX_PATH"]
-        cmake_prefix_path = ";".join([posix_path(x) for x in cmake_prefix_path_env.split(os.pathsep)])
+        cmake_prefix_path = ";".join(
+            [posix_path(x) for x in cmake_prefix_path_env.split(os.pathsep)]
+        )
         complete_rpath_list = ";".join(
             [
                 posix_path(self.pkg.spec.prefix.lib),
                 posix_path(self.pkg.spec.prefix.lib64),
-                *(posix_path(x) for x in os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").split(":")),
-                *(posix_path(x) for x in os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").split(":")),
+                *(
+                    posix_path(x)
+                    for x in os.environ.get("SPACK_COMPILER_EXTRA_RPATHS", "").split(":")
+                ),
+                *(
+                    posix_path(x)
+                    for x in os.environ.get("SPACK_COMPILER_IMPLICIT_RPATHS", "").split(":")
+                ),
             ]
         )
         return [
