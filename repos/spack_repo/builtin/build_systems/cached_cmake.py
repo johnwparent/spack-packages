@@ -248,12 +248,12 @@ class CachedCMakeBuilder(CMakeBuilder):
             "#------------------{0}\n".format("-" * 60),
         ]
 
-        entries.append(cmake_cache_path("MPI_C_COMPILER", spec["mpi"].mpicc))
-        entries.append(cmake_cache_path("MPI_CXX_COMPILER", spec["mpi"].mpicxx))
+        entries.append(cmake_cache_filepath("MPI_C_COMPILER", spec["mpi"].mpicc))
+        entries.append(cmake_cache_filepath("MPI_CXX_COMPILER", spec["mpi"].mpicxx))
 
         # not all MPIs have Fortran wrappers
         if hasattr(spec["mpi"], "mpifc"):
-            entries.append(cmake_cache_path("MPI_Fortran_COMPILER", spec["mpi"].mpifc))
+            entries.append(cmake_cache_filepath("MPI_Fortran_COMPILER", spec["mpi"].mpifc))
 
         # Determine MPIEXEC
         mpiexec = self.get_mpi_exec()
