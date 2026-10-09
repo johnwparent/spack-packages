@@ -48,7 +48,7 @@ already governs .so/.a placement there).
  if(SHARED)
 --- a/libmetis/CMakeLists.txt
 +++ b/libmetis/CMakeLists.txt
-@@ -8,10 +8,20 @@
+@@ -8,10 +8,31 @@
    target_link_libraries(metis m)
  endif()
 
@@ -57,9 +57,20 @@ already governs .so/.a placement there).
 +# therefore never exported from a shared metis.dll on Windows. Give them a
 +# private static copy of the library to link against instead, so they never
 +# depend on Windows DLL export/import semantics for internal symbols.
-+if(WIN32 AND METIS_LIBRARY_TYPE STREQUAL "SHARED")
++# NOTE: compare against the SHARED cache variable directly rather than
++# `METIS_LIBRARY_TYPE STREQUAL "SHARED"`: under CMake's CMP0054 OLD policy
++# (the default here, since upstream never sets it), a quoted string that
++# matches an existing variable name is dereferenced, so "SHARED" would
++# silently expand to the *value* of the SHARED cache option instead of
++# being compared as a literal string, making the condition always false.
++if(WIN32 AND SHARED)
 +  add_library(metis_internal STATIC ${GKlib_sources} ${metis_sources})
 +  set_target_properties(metis_internal PROPERTIES EXCLUDE_FROM_ALL TRUE)
++  # include/metis.h only expands METIS_API to __declspec(dllexport) when
++  # _WINDLL is defined. Visual Studio's own project templates define it for
++  # DLLs, but CMake does not, so without this metis.dll exports nothing and
++  # no import library is produced. Only the shared target needs it.
++  target_compile_definitions(metis PRIVATE _WINDLL)
 +endif()
 +
  if(METIS_INSTALL)
