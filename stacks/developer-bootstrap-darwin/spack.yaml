@@ -14,8 +14,8 @@ spack:
     reuse: false
   definitons:
     - py-dev:
-      - py-ruff@0.16.0
-      - py-ty@0.0.72
+      - py-ruff@0.16.10
+      - py-ty@0.0.85
       - py-pytest@9.0.3
     - python:
       - python@3.10
