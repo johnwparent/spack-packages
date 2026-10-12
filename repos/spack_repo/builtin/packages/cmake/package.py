@@ -111,21 +111,10 @@ class Cmake(Package):
         with when(f"platform={spack_platform}"):
             variant("ncurses", default=True, description="Enables the build of the ncurses gui")
 
-    # Revert the change that introduced a regression when parsing mpi link
-    # flags, see: https://gitlab.kitware.com/cmake/cmake/issues/19516
-    patch("cmake-revert-findmpi-link-flag-list.patch", when="@3.15.0")
 
     # Fix linker error when using external libs on darwin.
     # See https://gitlab.kitware.com/cmake/cmake/merge_requests/2873
     patch("cmake-macos-add-coreservices.patch", when="@3.11.0:3.13.3")
-
-    # Fix builds with XLF + Ninja generator
-    # https://gitlab.kitware.com/cmake/cmake/merge_requests/4075
-    patch(
-        "fix-xlf-ninja-mr-4075.patch",
-        sha256="42d8b2163a2f37a745800ec13a96c08a3a20d5e67af51031e51f63313d0dedd1",
-        when="@3.15.5",
-    )
 
     # Statically linked binaries error on install when CMAKE_INSTALL_RPATH is set
     # https://gitlab.kitware.com/cmake/cmake/-/merge_requests/9623
