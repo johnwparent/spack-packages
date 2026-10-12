@@ -111,7 +111,6 @@ class Cmake(Package):
         with when(f"platform={spack_platform}"):
             variant("ncurses", default=True, description="Enables the build of the ncurses gui")
 
-
     # Fix linker error when using external libs on darwin.
     # See https://gitlab.kitware.com/cmake/cmake/merge_requests/2873
     patch("cmake-macos-add-coreservices.patch", when="@3.11.0:3.13.3")
