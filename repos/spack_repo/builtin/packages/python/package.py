@@ -245,7 +245,6 @@ class Python(Package):
         # Optional dependencies
         # See detect_modules() in setup.py for details
         depends_on("readline", when="+readline")
-        depends_on("ncurses", when="+readline")
         # python's configure looks for ncurses regardless of readline
         # use, model this to prevent system ncurses being linked
         depends_on("ncurses", when="+curses")
