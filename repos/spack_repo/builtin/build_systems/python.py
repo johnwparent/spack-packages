@@ -18,7 +18,6 @@ from spack.package import (
     Spec,
     build_system,
     classproperty,
-    conflicts,
     depends_on,
     determine_number_of_jobs,
     execute_install_time_tests,
