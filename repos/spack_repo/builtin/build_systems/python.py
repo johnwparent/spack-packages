@@ -18,6 +18,7 @@ from spack.package import (
     Spec,
     build_system,
     classproperty,
+    conflicts,
     depends_on,
     determine_number_of_jobs,
     execute_install_time_tests,
@@ -243,6 +244,10 @@ class PythonPackage(PythonExtension):
     with when("build_system=python_pip"):
         extends("python")
         depends_on("py-pip", type="build")
+        # pip unconditionally imports expat and zlib, we cannot run
+        # pip against a python without these modules
+        conflicts("^python~pyexpat", msg="pip cannot run on a python without the pyexpat module")
+        conflicts("^python~zlib", msg="pip cannot run on a python without the zlib module")
         # FIXME: technically wheel is only needed when building from source, not when
         # installing a downloaded wheel, but I don't want to add wheel as a dep to every
         # package manually
