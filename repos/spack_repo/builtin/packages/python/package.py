@@ -242,8 +242,8 @@ class Python(Package):
         depends_on("iconv", when="~libxml2")
         depends_on("gettext ~libxml2", when="~libxml2 ^[virtuals=iconv] libiconv")
 
-        # Optional dependencies
-        # See detect_modules() in setup.py for details
+        # Optional dependencies and the minimum versions they require
+        # https://docs.python.org/3/using/configure.html#optional-module-requirements
         depends_on("readline", when="+readline")
         # python's configure looks for ncurses regardless of readline
         # use, model this to prevent system ncurses being linked
@@ -256,11 +256,12 @@ class Python(Package):
         depends_on("sqlite@3.0.8:", when="@:3.9+sqlite3")
         # https://docs.python.org/3.10/whatsnew/3.10.html#build-changes
         depends_on("sqlite@3.7.15:", when="@3.10:+sqlite3")
+        depends_on("sqlite@3.15.2:", when="@3.13:+sqlite3")
         depends_on("gdbm", when="+dbm")  # alternatively ndbm or berkeley-db
         depends_on("zlib-api", when="+zlib")
         depends_on("bzip2", when="+bz2")
         depends_on("xz libs=shared", when="+lzma")
-        depends_on("zstd libs=shared", when="+zstd")
+        depends_on("zstd@1.4.5: libs=shared", when="+zstd")
         depends_on("expat", when="+pyexpat")
         depends_on("libffi", when="+ctypes")
         depends_on("mpdecimal@2.5.0:2", when="@3.13:")
