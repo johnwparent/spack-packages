@@ -19,7 +19,7 @@ spack:
       - py-pytest@9.0.3
     - python:
       - python@3.10
-      - python@3.15
+      - python@3.15+zstd
   specs:
   # spack developer tools
   # pinned to versions CI uses
