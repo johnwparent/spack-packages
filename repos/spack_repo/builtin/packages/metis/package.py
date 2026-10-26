@@ -78,20 +78,16 @@ class Metis(CMakePackage, MakefilePackage):
             when="+petsc_patches",
         )
         patch("gklib_nomisleadingindentation_warning.patch", when="%gcc@6:")
-        # Fix the MSVC/Windows CMake build: enable `install()` (upstream
-        # disables it entirely under MSVC), link the "programs" (gpmetis,
-        # ndmetis, ...) against a private static copy of libmetis instead of
-        # the shared metis.dll (they call internal GKlib/libmetis symbols
-        # that are never part of the public, dllexport'd METIS_API), and
-        # install metis.dll to bin/ instead of lib/ so Spack's automatic
-        # Windows DLL-linkage (which only scans dependents' bin/) can find it.
-        patch("windows_msvc_build.patch")
-        # GKlib's MSVC fallback for INFINITY (#define INFINITY FLT_MAX) isn't
-        # guarded for modern MSVC/UCRT, where <math.h> already defines a real
-        # INFINITY; shadowing it breaks <corecrt_math.h>'s own later use of
-        # the macro (error C2059). Only fall back on MSVC versions that
-        # actually lack INFINITY/rint().
-        patch("windows_msvc_infinity_rint.patch")
+        # Ensure appropriate linkage on MSVC
+        patch("windows_msvc_build.patch", when="~petsc_patches platform=windows")
+        # more guarded MSVC INFINITY fallback. From suitesparse-metis-for-windows.
+        patch(
+            "https://github.com/jlblancoc/suitesparse-metis-for-windows/commit/"
+            "9a03e86252f61459b5fd7a44731dea27f5fef6ea.patch?full_index=1",
+            sha256="efe0552db743f8678eb22abb671310c33ce499ab9d4f8626976660114cc65e1d",
+            level=2,
+            when="~petsc_patches platform=windows",
+        )
 
     with when("build_system=makefile"):
         variant("debug", default=False, description="Compile in debug mode")
@@ -305,15 +301,20 @@ class CMakeBuilder(cmake.CMakeBuilder, SetupEnvironment):
                 install(join_path(self.stage.source_path, directory, "*.h"), inc_dist)
 
     def check(self):
-        # On some systems, the installed binaries for METIS cannot
-        # be executed without first being read.
-        ls = which("ls", required=True)
-        ls("-a", "-l", self.prefix.bin)
+        # check() runs after build but before install, so exercise the
+        # programs from the build tree rather than the (not yet populated) prefix.
+        programs = join_path(self.build_directory, "programs")
 
-        graphchk = Executable(join_path(self.prefix.bin, "graphchk"))
-        gpmetis = Executable(join_path(self.prefix.bin, "gpmetis"))
-        ndmetis = Executable(join_path(self.prefix.bin, "ndmetis"))
-        mpmetis = Executable(join_path(self.prefix.bin, "mpmetis"))
+        # On some systems, the binaries for METIS cannot
+        # be executed without first being read.
+        if not self.spec.satisfies("platform=windows"):
+            ls = which("ls", required=True)
+            ls("-a", "-l", programs)
+
+        graphchk = Executable(join_path(programs, "graphchk"))
+        gpmetis = Executable(join_path(programs, "gpmetis"))
+        ndmetis = Executable(join_path(programs, "ndmetis"))
+        mpmetis = Executable(join_path(programs, "mpmetis"))
         for f in ["4elt", "copter2", "mdual"]:
             graph = join_path(self.stage.source_path, "graphs", "%s.graph" % f)
             graphchk(graph)
