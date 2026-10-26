@@ -17,28 +17,15 @@
  if(SHARED)
 --- a/libmetis/CMakeLists.txt
 +++ b/libmetis/CMakeLists.txt
-@@ -8,10 +8,31 @@
+@@ -8,10 +8,18 @@
    target_link_libraries(metis m)
  endif()
 
-+# The "programs" (gpmetis, ndmetis, ...) call directly into internal
-+# GKlib/libmetis symbols that are not part of the public METIS_API and are
-+# therefore never exported from a shared metis.dll on Windows. Give them a
-+# private static copy of the library to link against instead, so they never
-+# depend on Windows DLL export/import semantics for internal symbols.
-+# NOTE: compare against the SHARED cache variable directly rather than
-+# `METIS_LIBRARY_TYPE STREQUAL "SHARED"`: under CMake's CMP0054 OLD policy
-+# (the default here, since upstream never sets it), a quoted string that
-+# matches an existing variable name is dereferenced, so "SHARED" would
-+# silently expand to the *value* of the SHARED cache option instead of
-+# being compared as a literal string, making the condition always false.
++# Programs use internal symbols not exported from metis.dll; link them statically.
 +if(WIN32 AND SHARED)
 +  add_library(metis_internal STATIC ${GKlib_sources} ${metis_sources})
 +  set_target_properties(metis_internal PROPERTIES EXCLUDE_FROM_ALL TRUE)
-+  # include/metis.h only expands METIS_API to __declspec(dllexport) when
-+  # _WINDLL is defined. Visual Studio's own project templates define it for
-+  # DLLs, but CMake does not, so without this metis.dll exports nothing and
-+  # no import library is produced. Only the shared target needs it.
++  # metis.h only dllexports METIS_API when _WINDLL is defined.
 +  target_compile_definitions(metis PRIVATE _WINDLL)
 +endif()
 +
@@ -52,7 +39,7 @@
    install(FILES gklib_rename.h DESTINATION include)
 --- a/programs/CMakeLists.txt
 +++ b/programs/CMakeLists.txt
-@@ -8,8 +8,18 @@
+@@ -8,8 +8,17 @@
  add_executable(m2gmetis m2gmetis.c cmdline_m2gmetis.c io.c)
  add_executable(graphchk graphchk.c io.c)
  add_executable(cmpfillin cmpfillin.c io.c smbfactor.c)
@@ -64,8 +51,7 @@
  foreach(prog gpmetis ndmetis mpmetis m2gmetis graphchk cmpfillin)
 -  target_link_libraries(${prog} metis)
 +  target_link_libraries(${prog} ${METIS_PROGRAMS_LIBRARY})
-+  # io.c puts a MAXLINE (1.28MB) filename buffer on the stack, which
-+  # overflows MSVC's 1MB default; match the 8MB Linux default instead.
++  # io.c's 1.28MB stack buffer overflows MSVC's 1MB default stack.
 +  if(MSVC)
 +    set_target_properties(${prog} PROPERTIES LINK_FLAGS "/STACK:8388608")
 +  endif()
