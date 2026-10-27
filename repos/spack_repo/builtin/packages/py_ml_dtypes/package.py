@@ -14,7 +14,6 @@ class PyMlDtypes(PythonPackage):
     homepage = "https://github.com/jax-ml/ml_dtypes"
     pypi = "ml_dtypes/ml_dtypes-0.3.1.tar.gz"
     git = "https://github.com/jax-ml/ml_dtypes.git"
-    submodules = True
 
     license("Apache-2.0")
 
