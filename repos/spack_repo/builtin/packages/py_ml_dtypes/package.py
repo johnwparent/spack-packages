@@ -44,4 +44,3 @@ class PyMlDtypes(PythonPackage):
     def setup_build_environment(self, env: EnvironmentModifications) -> None:
         if self.spec.satisfies("@:0.5"):
             env.set("EIGEN_DIR", self.spec["eigen"].prefix.include.eigen3)
-
