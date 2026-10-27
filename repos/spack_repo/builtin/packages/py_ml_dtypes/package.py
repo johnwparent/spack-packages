@@ -27,6 +27,7 @@ class PyMlDtypes(PythonPackage):
     # patch that out so Spack can supply an eigen
     # in 0.6.0 ml_dtypes added CMake support so the patch target changes
     patch("third-party-eigen.patch", when="@0.2.0:0.5.1")
+    # https://github.com/jax-ml/ml_dtypes/pull/421
     patch(
         "https://github.com/jax-ml/ml_dtypes/commit/47362b2c84eab14d54bfe04f39bde69814cafd22.patch?full_index=1",
         sha256="f892b05b1eb19551dad6f6c1cc6cdf382e60f8291bb081ef2720301af1c3fe28",
