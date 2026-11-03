@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+from spack_repo.builtin.build_systems import autotools, cmake
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
+from spack_repo.builtin.build_systems.cmake import CMakePackage
 
 from spack.package import *
 
 
-class Lwgrp(AutotoolsPackage):
+class Lwgrp(CMakePackage, AutotoolsPackage):
     """Thie light-weight group library provides process group
     representations using O(log N) space and time."""
 
@@ -24,7 +26,16 @@ class Lwgrp(AutotoolsPackage):
     version("1.0.3", sha256="20b2fc3908bfdf04d1c177f86e227a147214cd155c548b3dd75e54c78e1c1c47")
     version("1.0.2", sha256="c9d4233946e40f01efd0b4644fd9224becec51b9b5f8cbf45f5bac3129b5b536")
 
+    build_system(conditional("cmake", when="@1.0.6:"), "autotools", default="autotools")
+
+    # CMake build system from https://github.com/llnl/lwgrp/pull/9, without the
+    # .gitignore/Makefile.am/test source changes so it applies to release tarballs
+    patch("lwgrp-cmake.patch", when="build_system=cmake")
+
     depends_on("c", type="build")  # generated
+
+    with when("build_system=cmake"):
+        depends_on("cmake@3.30:", type="build")
 
     depends_on("mpi")
 
@@ -34,5 +45,15 @@ class Lwgrp(AutotoolsPackage):
 
     variant("shared", default=True, description="Build with shared libraries")
 
+    # lwgrp.h exports global data without dllexport, so no import library is produced
+    conflicts("+shared", when="platform=windows", msg="lwgrp can only be built static on Windows")
+
+
+class CMakeBuilder(cmake.CMakeBuilder):
+    def cmake_args(self):
+        return [self.define_from_variant("BUILD_SHARED_LIBS", "shared")]
+
+
+class AutotoolsBuilder(autotools.AutotoolsBuilder):
     def configure_args(self):
         return self.enable_or_disable("shared")
