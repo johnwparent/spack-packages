@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+from spack_repo.builtin.build_systems import autotools, cmake
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
+from spack_repo.builtin.build_systems.cmake import CMakePackage
 
 from spack.package import *
 
 
-class Dtcmp(AutotoolsPackage):
+class Dtcmp(CMakePackage, AutotoolsPackage):
     """The Datatype Comparison Library provides comparison operations and
     parallel sort algorithms for MPI applications."""
 
@@ -26,7 +28,16 @@ class Dtcmp(AutotoolsPackage):
     version("1.1.0", sha256="fd2c4485eee560a029f62c8f227df4acdb1edc9340907f4ae2dbee59f05f057d")
     version("1.0.3", sha256="1327368e2808043ad5f245cd16f0da19543de50eae02a4e22b8a1c2e0eff8f35")
 
+    build_system(conditional("cmake", when="@1.1.5:"), "autotools", default="autotools")
+
+    # CMake build system from https://github.com/llnl/dtcmp/pull/22, without the
+    # .gitignore/Makefile.am/README changes so it applies to release tarballs
+    patch("dtcmp-cmake.patch", when="build_system=cmake")
+
     depends_on("c", type="build")  # generated
+
+    with when("build_system=cmake"):
+        depends_on("cmake@3.30:", type="build")
 
     depends_on("mpi")
     depends_on("lwgrp")
@@ -39,6 +50,19 @@ class Dtcmp(AutotoolsPackage):
     depends_on("lwgrp+shared", when="+shared")
     depends_on("lwgrp~shared", when="~shared")
 
+    # dtcmp.h exports global data without dllexport, so no import library is produced
+    conflicts("+shared", when="platform=windows", msg="dtcmp can only be built static on Windows")
+
+
+class CMakeBuilder(cmake.CMakeBuilder):
+    def cmake_args(self):
+        return [
+            self.define_from_variant("BUILD_SHARED_LIBS", "shared"),
+            self.define("LWGRP_ROOT", self.spec["lwgrp"].prefix),
+        ]
+
+
+class AutotoolsBuilder(autotools.AutotoolsBuilder):
     def configure_args(self):
         args = ["--with-lwgrp=%s" % self.spec["lwgrp"].prefix]
         args.extend(self.enable_or_disable("shared"))
