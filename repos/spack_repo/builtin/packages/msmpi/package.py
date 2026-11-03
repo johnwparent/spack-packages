@@ -78,8 +78,10 @@ class Msmpi(msbuild.MSBuildPackage):
         # MSMPI does not vendor compiler wrappers, instead arguments should
         # be manually supplied to compiler by consuming package
         # Note: This is not typical of MPI installations
-        self.spec.mpicc = dependent_spec["c"].package.cc
-        self.spec.mpicxx = dependent_spec["cxx"].package.cxx
+        if "c" in dependent_spec:
+            self.spec.mpicc = dependent_spec["c"].package.cc
+        if "cxx" in dependent_spec:
+            self.spec.mpicxx = dependent_spec["cxx"].package.cxx
         if "fortran" in dependent_spec:
             self.spec.mpifc = dependent_spec["fortran"].package.fortran
             self.spec.mpif77 = dependent_spec["fortran"].package.fortran
