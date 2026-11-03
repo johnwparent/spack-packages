@@ -1,0 +1,140 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6eabe7b9..1c73948e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -38,9 +38,12 @@ IF(NOT SCR_USE_EXTERNAL_AXL)
+     INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/axl)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_REDSET)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/redset)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+     ${CMAKE_SOURCE_DIR}/src/shuffile
+-    ${CMAKE_SOURCE_DIR}/src/redset
+     ${CMAKE_SOURCE_DIR}/src/er
+     ${CMAKE_SOURCE_DIR}/src
+ )
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index f815a235..315f4eff 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -80,6 +80,21 @@ IF(SCR_USE_EXTERNAL_AXL)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS axl::axl_mpi-static)
+ ENDIF(SCR_USE_EXTERNAL_AXL)
+ 
++## REDSET
++IF(SCR_USE_EXTERNAL_REDSET)
++    FIND_PACKAGE(redset REQUIRED)
++    GET_TARGET_PROPERTY(REDSET_INCLUDE_DIRS redset::redset-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${REDSET_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET redset::redset)
++        LIST(APPEND SCR_EXTERNAL_LIBS redset::redset)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS redset::redset_base)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS redset::redset-static)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS redset::redset_base-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS redset::redset-static)
++ENDIF(SCR_USE_EXTERNAL_REDSET)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index 6e98c08e..5ac5d769 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -157,6 +157,9 @@ MESSAGE(STATUS "SCR_USE_EXTERNAL_SPATH: ${SCR_USE_EXTERNAL_SPATH}")
+ OPTION(SCR_USE_EXTERNAL_AXL "Use an external AXL instead of the bundled copy" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_AXL: ${SCR_USE_EXTERNAL_AXL}")
+ 
++OPTION(SCR_USE_EXTERNAL_REDSET "Use an external redset instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_REDSET: ${SCR_USE_EXTERNAL_REDSET}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index b27e3c9b..ff1097d8 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -25,6 +25,10 @@ IF(@SCR_USE_EXTERNAL_AXL@)
+     find_dependency(axl REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_REDSET@)
++    find_dependency(redset REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index d2e85a16..a54441e5 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -50,7 +50,6 @@ LIST(APPEND libscr_srcs
+ )
+ 
+ ADD_SUBDIRECTORY(er)
+-ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+ 
+ IF(NOT SCR_USE_EXTERNAL_DTCMP)
+@@ -85,11 +84,16 @@ IF(NOT SCR_USE_EXTERNAL_AXL)
+     LIST(APPEND serial_objects $<TARGET_OBJECTS:axl_serial_o>)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_REDSET)
++    ADD_SUBDIRECTORY(redset)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:redset_o>)
++    LIST(APPEND serial_objects $<TARGET_OBJECTS:redset_serial_o>)
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+     $<TARGET_OBJECTS:er_o>
+-    $<TARGET_OBJECTS:redset_o>
+     $<TARGET_OBJECTS:shuffile_o>
+ )
+ 
+@@ -148,10 +152,6 @@ LIST(APPEND scr_serial_srcs
+     scr_rebuild_rs.c
+ )
+ 
+-LIST(APPEND serial_objects
+-    $<TARGET_OBJECTS:redset_serial_o>
+-)
+-
+ # Fortran
+ IF(ENABLE_FORTRAN)
+         IF(BUILD_SHARED_LIBS)
+diff --git a/src/er/CMakeLists.txt b/src/er/CMakeLists.txt
+index 9155ad3e..fecbc1a6 100644
+--- a/src/er/CMakeLists.txt
++++ b/src/er/CMakeLists.txt
+@@ -3,7 +3,7 @@ LIST(APPEND liber_srcs
+     er_util.c
+ )
+ 
+-ADD_LIBRARY(er_o OBJECT $<TARGET_OBJECTS:shuffile_o> $<TARGET_OBJECTS:redset_o> ${liber_srcs})
++ADD_LIBRARY(er_o OBJECT $<TARGET_OBJECTS:shuffile_o> ${liber_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET er_o PROPERTY POSITION_INDEPENDENT_CODE 1)
+diff --git a/src/shuffile/CMakeLists.txt b/src/shuffile/CMakeLists.txt
+index 67e89d6a..ce242f33 100644
+--- a/src/shuffile/CMakeLists.txt
++++ b/src/shuffile/CMakeLists.txt
+@@ -4,7 +4,7 @@ LIST(APPEND libshuffile_srcs
+     shuffile.c
+ )
+ 
+-ADD_LIBRARY(shuffile_o OBJECT $<TARGET_OBJECTS:redset_o> ${libshuffile_srcs})
++ADD_LIBRARY(shuffile_o OBJECT ${libshuffile_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET shuffile_o PROPERTY POSITION_INDEPENDENT_CODE 1)

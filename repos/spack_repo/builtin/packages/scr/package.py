@@ -90,6 +90,11 @@ class Scr(CMakePackage):
     depends_on("dtcmp", when="+dtcmp")
     depends_on("dtcmp", when="@3:")
 
+    # develop bundles its components; build against Spack's instead.
+    # These are a stacked series and must stay in this order.
+    for comp in ["dtcmp", "kvtree", "rankstr", "spath", "axl", "redset", "shuffile", "er"]:
+        patch(f"scr-external-{comp}.patch", when="@develop")
+
     variant(
         "libyogrt", default=True, description="Build SCR with libyogrt for get_time_remaining."
     )
@@ -179,8 +184,12 @@ class Scr(CMakePackage):
     variant("shared", default=True, when="@3:", description="Build with shared libraries")
     depends_on("libyogrt+static", when="~shared")
     for comp in cmpnts:
-        depends_on(comp + "+shared", when="+shared")
+        if comp != "dtcmp":
+            depends_on(comp + "+shared", when="+shared")
         depends_on(comp + "~shared", when="~shared")
+    # dtcmp is static-only on Windows, where it links into a shared scr just fine
+    for plat in ["linux", "darwin", "freebsd"]:
+        depends_on("dtcmp+shared", when=f"+shared platform={plat}")
     conflicts("~shared", when="+bbapi", msg="See SCR issue #453")
     conflicts("~shared", when="+examples", msg="See SCR issue #455")
 
@@ -254,6 +263,11 @@ class Scr(CMakePackage):
             cmpnts = ["axl", "dtcmp", "er", "kvtree", "rankstr", "redset", "shuffile", "spath"]
             for comp in cmpnts:
                 args.append(self.define("WITH_" + comp.upper() + "_PREFIX", spec[comp].prefix))
+
+            if spec.satisfies("@develop"):
+                for comp in cmpnts:
+                    args.append(self.define("SCR_USE_EXTERNAL_" + comp.upper(), True))
+                args.append(self.define("WITH_LWGRP_PREFIX", spec["lwgrp"].prefix))
 
             # PDSH optional from this point on
             if "+pdsh" in spec:

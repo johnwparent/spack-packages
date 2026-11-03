@@ -1,0 +1,186 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index dd13eb98..95e0b7fe 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -22,8 +22,11 @@ IF(NOT SCR_USE_EXTERNAL_DTCMP)
+     )
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_KVTREE)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/kvtree)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+-    ${CMAKE_SOURCE_DIR}/src/kvtree
+     ${CMAKE_SOURCE_DIR}/src/spath
+     ${CMAKE_SOURCE_DIR}/src/rankstr
+     ${CMAKE_SOURCE_DIR}/src/axl
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index b6e8b916..7a13760b 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -22,6 +22,21 @@ IF(SCR_USE_EXTERNAL_DTCMP)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS ${DTCMP_LIBRARIES})
+ ENDIF(SCR_USE_EXTERNAL_DTCMP)
+ 
++## KVTREE
++IF(SCR_USE_EXTERNAL_KVTREE)
++    FIND_PACKAGE(kvtree REQUIRED)
++    GET_TARGET_PROPERTY(KVTREE_INCLUDE_DIRS kvtree::kvtree-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${KVTREE_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET kvtree::kvtree)
++        LIST(APPEND SCR_EXTERNAL_LIBS kvtree::kvtree)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS kvtree::kvtree_base)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS kvtree::kvtree-static)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS kvtree::kvtree_base-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS kvtree::kvtree-static)
++ENDIF(SCR_USE_EXTERNAL_KVTREE)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index ca49a975..6bb1629f 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -145,6 +145,9 @@ ENDIF(ENABLE_PDSH)
+ OPTION(SCR_USE_EXTERNAL_DTCMP "Use an external DTCMP (and LWGRP) instead of the bundled copies" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_DTCMP: ${SCR_USE_EXTERNAL_DTCMP}")
+ 
++OPTION(SCR_USE_EXTERNAL_KVTREE "Use an external KVTree instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_KVTREE: ${SCR_USE_EXTERNAL_KVTREE}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index c0c72b16..83f208ff 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -9,6 +9,10 @@ IF(@dtcmp_FOUND@)
+     find_dependency(dtcmp REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_KVTREE@)
++    find_dependency(kvtree REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index d0cc382e..05d259c7 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -51,7 +51,6 @@ LIST(APPEND libscr_srcs
+ 
+ ADD_SUBDIRECTORY(axl)
+ ADD_SUBDIRECTORY(er)
+-ADD_SUBDIRECTORY(kvtree)
+ ADD_SUBDIRECTORY(rankstr)
+ ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+@@ -66,12 +65,17 @@ IF(NOT SCR_USE_EXTERNAL_DTCMP)
+     )
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_KVTREE)
++    ADD_SUBDIRECTORY(kvtree)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:kvtree_o>)
++    LIST(APPEND serial_objects $<TARGET_OBJECTS:kvtree_serial_o>)
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+     $<TARGET_OBJECTS:axl_o>
+     $<TARGET_OBJECTS:er_o>
+-    $<TARGET_OBJECTS:kvtree_o>
+     $<TARGET_OBJECTS:rankstr_o>
+     $<TARGET_OBJECTS:redset_o>
+     $<TARGET_OBJECTS:shuffile_o>
+@@ -135,7 +139,6 @@ LIST(APPEND scr_serial_srcs
+ 
+ LIST(APPEND serial_objects
+     $<TARGET_OBJECTS:axl_serial_o>
+-    $<TARGET_OBJECTS:kvtree_serial_o>
+     $<TARGET_OBJECTS:redset_serial_o>
+     $<TARGET_OBJECTS:spath_serial_o>
+ )
+diff --git a/src/axl/CMakeLists.txt b/src/axl/CMakeLists.txt
+index dde1636f..2970208b 100644
+--- a/src/axl/CMakeLists.txt
++++ b/src/axl/CMakeLists.txt
+@@ -32,8 +32,8 @@ IF(MPI_C_FOUND)
+   LIST(APPEND libaxl_srcs axl_mpi.c)
+ ENDIF(MPI_C_FOUND)
+ 
+-ADD_LIBRARY(axl_o OBJECT $<TARGET_OBJECTS:kvtree_o> ${libaxl_srcs})
+-ADD_LIBRARY(axl_serial_o OBJECT $<TARGET_OBJECTS:kvtree_serial_o> ${libaxl_serial_srcs})
++ADD_LIBRARY(axl_o OBJECT ${libaxl_srcs})
++ADD_LIBRARY(axl_serial_o OBJECT ${libaxl_serial_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET axl_o PROPERTY POSITION_INDEPENDENT_CODE 1)
+diff --git a/src/axl/test/CMakeLists.txt b/src/axl/test/CMakeLists.txt
+index 927251dc..6a6c4dd8 100644
+--- a/src/axl/test/CMakeLists.txt
++++ b/src/axl/test/CMakeLists.txt
+@@ -10,8 +10,12 @@ LIST(APPEND axl_test_srcs
+ ADD_EXECUTABLE(axl_cp axl_cp.c)
+ ADD_EXECUTABLE(axl_test_config test_config.c)
+ 
+-TARGET_LINK_LIBRARIES(axl_cp axl_o kvtree_o ${SCR_EXTERNAL_LIBS})
+-TARGET_LINK_LIBRARIES(axl_test_config axl_o kvtree_o ${SCR_EXTERNAL_LIBS})
++IF(NOT SCR_USE_EXTERNAL_KVTREE)
++    LIST(APPEND axl_test_libs kvtree_o)
++ENDIF()
++
++TARGET_LINK_LIBRARIES(axl_cp axl_o ${axl_test_libs} ${SCR_EXTERNAL_LIBS})
++TARGET_LINK_LIBRARIES(axl_test_config axl_o ${axl_test_libs} ${SCR_EXTERNAL_LIBS})
+ 
+ ################
+ # Add tests to ctest
+diff --git a/src/er/CMakeLists.txt b/src/er/CMakeLists.txt
+index 6d0052e9..9155ad3e 100644
+--- a/src/er/CMakeLists.txt
++++ b/src/er/CMakeLists.txt
+@@ -3,7 +3,7 @@ LIST(APPEND liber_srcs
+     er_util.c
+ )
+ 
+-ADD_LIBRARY(er_o OBJECT $<TARGET_OBJECTS:shuffile_o> $<TARGET_OBJECTS:kvtree_o> $<TARGET_OBJECTS:redset_o> ${liber_srcs})
++ADD_LIBRARY(er_o OBJECT $<TARGET_OBJECTS:shuffile_o> $<TARGET_OBJECTS:redset_o> ${liber_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET er_o PROPERTY POSITION_INDEPENDENT_CODE 1)
+diff --git a/src/redset/CMakeLists.txt b/src/redset/CMakeLists.txt
+index 98a10667..8cea3aaa 100644
+--- a/src/redset/CMakeLists.txt
++++ b/src/redset/CMakeLists.txt
+@@ -37,8 +37,8 @@ IF(ENABLE_CUDA)
+     )
+ ENDIF(ENABLE_CUDA)
+ 
+-ADD_LIBRARY(redset_o OBJECT $<TARGET_OBJECTS:kvtree_o> $<TARGET_OBJECTS:rankstr_o> ${libredset_srcs})
+-ADD_LIBRARY(redset_serial_o OBJECT $<TARGET_OBJECTS:kvtree_serial_o> $<TARGET_OBJECTS:rankstr_o> ${redset_serial_srcs})
++ADD_LIBRARY(redset_o OBJECT $<TARGET_OBJECTS:rankstr_o> ${libredset_srcs})
++ADD_LIBRARY(redset_serial_o OBJECT $<TARGET_OBJECTS:rankstr_o> ${redset_serial_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET redset_o PROPERTY POSITION_INDEPENDENT_CODE 1)
+diff --git a/src/shuffile/CMakeLists.txt b/src/shuffile/CMakeLists.txt
+index a6aeb8c0..67e89d6a 100644
+--- a/src/shuffile/CMakeLists.txt
++++ b/src/shuffile/CMakeLists.txt
+@@ -4,7 +4,7 @@ LIST(APPEND libshuffile_srcs
+     shuffile.c
+ )
+ 
+-ADD_LIBRARY(shuffile_o OBJECT $<TARGET_OBJECTS:kvtree_o> $<TARGET_OBJECTS:redset_o> ${libshuffile_srcs})
++ADD_LIBRARY(shuffile_o OBJECT $<TARGET_OBJECTS:redset_o> ${libshuffile_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET shuffile_o PROPERTY POSITION_INDEPENDENT_CODE 1)

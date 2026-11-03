@@ -1,0 +1,109 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 20d96d8c..6eabe7b9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -34,8 +34,11 @@ IF(NOT SCR_USE_EXTERNAL_SPATH)
+     INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/spath)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_AXL)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/axl)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+-    ${CMAKE_SOURCE_DIR}/src/axl
+     ${CMAKE_SOURCE_DIR}/src/shuffile
+     ${CMAKE_SOURCE_DIR}/src/redset
+     ${CMAKE_SOURCE_DIR}/src/er
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index af9f6578..f815a235 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -65,6 +65,21 @@ IF(SCR_USE_EXTERNAL_SPATH)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS spath::spath-static)
+ ENDIF(SCR_USE_EXTERNAL_SPATH)
+ 
++## AXL
++IF(SCR_USE_EXTERNAL_AXL)
++    FIND_PACKAGE(axl REQUIRED)
++    GET_TARGET_PROPERTY(AXL_INCLUDE_DIRS axl::axl_mpi-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${AXL_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET axl::axl_mpi)
++        LIST(APPEND SCR_EXTERNAL_LIBS axl::axl_mpi)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS axl::axl)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS axl::axl_mpi-static)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS axl::axl-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS axl::axl_mpi-static)
++ENDIF(SCR_USE_EXTERNAL_AXL)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index 7f4aaeba..6e98c08e 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -154,6 +154,9 @@ MESSAGE(STATUS "SCR_USE_EXTERNAL_RANKSTR: ${SCR_USE_EXTERNAL_RANKSTR}")
+ OPTION(SCR_USE_EXTERNAL_SPATH "Use an external spath instead of the bundled copy" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_SPATH: ${SCR_USE_EXTERNAL_SPATH}")
+ 
++OPTION(SCR_USE_EXTERNAL_AXL "Use an external AXL instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_AXL: ${SCR_USE_EXTERNAL_AXL}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index 37f3856d..b27e3c9b 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -21,6 +21,10 @@ IF(@SCR_USE_EXTERNAL_SPATH@)
+     find_dependency(spath REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_AXL@)
++    find_dependency(axl REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 38faa5da..d2e85a16 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -49,7 +49,6 @@ LIST(APPEND libscr_srcs
+     scr_util_mpi.c
+ )
+ 
+-ADD_SUBDIRECTORY(axl)
+ ADD_SUBDIRECTORY(er)
+ ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+@@ -80,10 +79,15 @@ IF(NOT SCR_USE_EXTERNAL_SPATH)
+     LIST(APPEND serial_objects $<TARGET_OBJECTS:spath_serial_o>)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_AXL)
++    ADD_SUBDIRECTORY(axl)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:axl_o>)
++    LIST(APPEND serial_objects $<TARGET_OBJECTS:axl_serial_o>)
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+-    $<TARGET_OBJECTS:axl_o>
+     $<TARGET_OBJECTS:er_o>
+     $<TARGET_OBJECTS:redset_o>
+     $<TARGET_OBJECTS:shuffile_o>
+@@ -145,7 +149,6 @@ LIST(APPEND scr_serial_srcs
+ )
+ 
+ LIST(APPEND serial_objects
+-    $<TARGET_OBJECTS:axl_serial_o>
+     $<TARGET_OBJECTS:redset_serial_o>
+ )
+ 

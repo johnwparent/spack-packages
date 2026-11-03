@@ -1,0 +1,113 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 497cf240..20d96d8c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -30,8 +30,11 @@ IF(NOT SCR_USE_EXTERNAL_RANKSTR)
+     INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/rankstr)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_SPATH)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/spath)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+-    ${CMAKE_SOURCE_DIR}/src/spath
+     ${CMAKE_SOURCE_DIR}/src/axl
+     ${CMAKE_SOURCE_DIR}/src/shuffile
+     ${CMAKE_SOURCE_DIR}/src/redset
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index 47d1c52a..af9f6578 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -50,6 +50,21 @@ IF(SCR_USE_EXTERNAL_RANKSTR)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS rankstr::rankstr-static)
+ ENDIF(SCR_USE_EXTERNAL_RANKSTR)
+ 
++## SPATH
++IF(SCR_USE_EXTERNAL_SPATH)
++    FIND_PACKAGE(spath REQUIRED)
++    GET_TARGET_PROPERTY(SPATH_INCLUDE_DIRS spath::spath-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${SPATH_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET spath::spath)
++        LIST(APPEND SCR_EXTERNAL_LIBS spath::spath)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS spath::spath_base)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS spath::spath-static)
++        LIST(APPEND SCR_EXTERNAL_SERIAL_LIBS spath::spath_base-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS spath::spath-static)
++ENDIF(SCR_USE_EXTERNAL_SPATH)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index 3e2e2c83..7f4aaeba 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -151,6 +151,9 @@ MESSAGE(STATUS "SCR_USE_EXTERNAL_KVTREE: ${SCR_USE_EXTERNAL_KVTREE}")
+ OPTION(SCR_USE_EXTERNAL_RANKSTR "Use an external rankstr instead of the bundled copy" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_RANKSTR: ${SCR_USE_EXTERNAL_RANKSTR}")
+ 
++OPTION(SCR_USE_EXTERNAL_SPATH "Use an external spath instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_SPATH: ${SCR_USE_EXTERNAL_SPATH}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index afff0d03..37f3856d 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -17,6 +17,10 @@ IF(@SCR_USE_EXTERNAL_RANKSTR@)
+     find_dependency(rankstr REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_SPATH@)
++    find_dependency(spath REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 5c8305c8..38faa5da 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -53,7 +53,6 @@ ADD_SUBDIRECTORY(axl)
+ ADD_SUBDIRECTORY(er)
+ ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+-ADD_SUBDIRECTORY(spath)
+ 
+ IF(NOT SCR_USE_EXTERNAL_DTCMP)
+     ADD_SUBDIRECTORY(dtcmp)
+@@ -75,6 +74,12 @@ IF(NOT SCR_USE_EXTERNAL_RANKSTR)
+     LIST(APPEND scr_component_objects $<TARGET_OBJECTS:rankstr_o>)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_SPATH)
++    ADD_SUBDIRECTORY(spath)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:spath_o>)
++    LIST(APPEND serial_objects $<TARGET_OBJECTS:spath_serial_o>)
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+@@ -82,7 +87,6 @@ LIST(APPEND scr_component_objects
+     $<TARGET_OBJECTS:er_o>
+     $<TARGET_OBJECTS:redset_o>
+     $<TARGET_OBJECTS:shuffile_o>
+-    $<TARGET_OBJECTS:spath_o>
+ )
+ 
+ #
+@@ -143,7 +147,6 @@ LIST(APPEND scr_serial_srcs
+ LIST(APPEND serial_objects
+     $<TARGET_OBJECTS:axl_serial_o>
+     $<TARGET_OBJECTS:redset_serial_o>
+-    $<TARGET_OBJECTS:spath_serial_o>
+ )
+ 
+ # Fortran

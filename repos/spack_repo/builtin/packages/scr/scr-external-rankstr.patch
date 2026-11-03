@@ -1,0 +1,116 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 95e0b7fe..497cf240 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -26,9 +26,12 @@ IF(NOT SCR_USE_EXTERNAL_KVTREE)
+     INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/kvtree)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_RANKSTR)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/rankstr)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+     ${CMAKE_SOURCE_DIR}/src/spath
+-    ${CMAKE_SOURCE_DIR}/src/rankstr
+     ${CMAKE_SOURCE_DIR}/src/axl
+     ${CMAKE_SOURCE_DIR}/src/shuffile
+     ${CMAKE_SOURCE_DIR}/src/redset
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index 7a13760b..47d1c52a 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -37,6 +37,19 @@ IF(SCR_USE_EXTERNAL_KVTREE)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS kvtree::kvtree-static)
+ ENDIF(SCR_USE_EXTERNAL_KVTREE)
+ 
++## RANKSTR
++IF(SCR_USE_EXTERNAL_RANKSTR)
++    FIND_PACKAGE(rankstr REQUIRED)
++    GET_TARGET_PROPERTY(RANKSTR_INCLUDE_DIRS rankstr::rankstr-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${RANKSTR_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET rankstr::rankstr)
++        LIST(APPEND SCR_EXTERNAL_LIBS rankstr::rankstr)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS rankstr::rankstr-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS rankstr::rankstr-static)
++ENDIF(SCR_USE_EXTERNAL_RANKSTR)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index 6bb1629f..3e2e2c83 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -148,6 +148,9 @@ MESSAGE(STATUS "SCR_USE_EXTERNAL_DTCMP: ${SCR_USE_EXTERNAL_DTCMP}")
+ OPTION(SCR_USE_EXTERNAL_KVTREE "Use an external KVTree instead of the bundled copy" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_KVTREE: ${SCR_USE_EXTERNAL_KVTREE}")
+ 
++OPTION(SCR_USE_EXTERNAL_RANKSTR "Use an external rankstr instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_RANKSTR: ${SCR_USE_EXTERNAL_RANKSTR}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index 83f208ff..afff0d03 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -13,6 +13,10 @@ IF(@SCR_USE_EXTERNAL_KVTREE@)
+     find_dependency(kvtree REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_RANKSTR@)
++    find_dependency(rankstr REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 05d259c7..5c8305c8 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -51,7 +51,6 @@ LIST(APPEND libscr_srcs
+ 
+ ADD_SUBDIRECTORY(axl)
+ ADD_SUBDIRECTORY(er)
+-ADD_SUBDIRECTORY(rankstr)
+ ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+ ADD_SUBDIRECTORY(spath)
+@@ -71,12 +70,16 @@ IF(NOT SCR_USE_EXTERNAL_KVTREE)
+     LIST(APPEND serial_objects $<TARGET_OBJECTS:kvtree_serial_o>)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_RANKSTR)
++    ADD_SUBDIRECTORY(rankstr)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:rankstr_o>)
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+     $<TARGET_OBJECTS:axl_o>
+     $<TARGET_OBJECTS:er_o>
+-    $<TARGET_OBJECTS:rankstr_o>
+     $<TARGET_OBJECTS:redset_o>
+     $<TARGET_OBJECTS:shuffile_o>
+     $<TARGET_OBJECTS:spath_o>
+diff --git a/src/redset/CMakeLists.txt b/src/redset/CMakeLists.txt
+index 8cea3aaa..6390c0be 100644
+--- a/src/redset/CMakeLists.txt
++++ b/src/redset/CMakeLists.txt
+@@ -37,8 +37,8 @@ IF(ENABLE_CUDA)
+     )
+ ENDIF(ENABLE_CUDA)
+ 
+-ADD_LIBRARY(redset_o OBJECT $<TARGET_OBJECTS:rankstr_o> ${libredset_srcs})
+-ADD_LIBRARY(redset_serial_o OBJECT $<TARGET_OBJECTS:rankstr_o> ${redset_serial_srcs})
++ADD_LIBRARY(redset_o OBJECT ${libredset_srcs})
++ADD_LIBRARY(redset_serial_o OBJECT ${redset_serial_srcs})
+ 
+ IF(BUILD_SHARED_LIBS)
+   SET_PROPERTY(TARGET redset_o PROPERTY POSITION_INDEPENDENT_CODE 1)

@@ -1,0 +1,100 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 30c4e059..72ffc704 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -46,8 +46,11 @@ IF(NOT SCR_USE_EXTERNAL_SHUFFILE)
+     INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/shuffile)
+ ENDIF()
+ 
++IF(NOT SCR_USE_EXTERNAL_ER)
++    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/er)
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+-    ${CMAKE_SOURCE_DIR}/src/er
+     ${CMAKE_SOURCE_DIR}/src
+ )
+ 
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index 261d2973..1cb1208f 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -108,6 +108,19 @@ IF(SCR_USE_EXTERNAL_SHUFFILE)
+     LIST(APPEND SCR_EXTERNAL_STATIC_LIBS shuffile::shuffile-static)
+ ENDIF(SCR_USE_EXTERNAL_SHUFFILE)
+ 
++## ER
++IF(SCR_USE_EXTERNAL_ER)
++    FIND_PACKAGE(er REQUIRED)
++    GET_TARGET_PROPERTY(ER_INCLUDE_DIRS er::er-static INTERFACE_INCLUDE_DIRECTORIES)
++    INCLUDE_DIRECTORIES(${ER_INCLUDE_DIRS})
++    IF(BUILD_SHARED_LIBS AND TARGET er::er)
++        LIST(APPEND SCR_EXTERNAL_LIBS er::er)
++    ELSE()
++        LIST(APPEND SCR_EXTERNAL_LIBS er::er-static)
++    ENDIF()
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS er::er-static)
++ENDIF(SCR_USE_EXTERNAL_ER)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index 95aae068..fdd08ee8 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -163,6 +163,9 @@ MESSAGE(STATUS "SCR_USE_EXTERNAL_REDSET: ${SCR_USE_EXTERNAL_REDSET}")
+ OPTION(SCR_USE_EXTERNAL_SHUFFILE "Use an external shuffile instead of the bundled copy" OFF)
+ MESSAGE(STATUS "SCR_USE_EXTERNAL_SHUFFILE: ${SCR_USE_EXTERNAL_SHUFFILE}")
+ 
++OPTION(SCR_USE_EXTERNAL_ER "Use an external ER instead of the bundled copy" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_ER: ${SCR_USE_EXTERNAL_ER}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index 2a82035f..d8b1b8f6 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -33,6 +33,10 @@ IF(@SCR_USE_EXTERNAL_SHUFFILE@)
+     find_dependency(shuffile REQUIRED)
+ ENDIF()
+ 
++IF(@SCR_USE_EXTERNAL_ER@)
++    find_dependency(er REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 363931ea..212e18be 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -49,8 +49,6 @@ LIST(APPEND libscr_srcs
+     scr_util_mpi.c
+ )
+ 
+-ADD_SUBDIRECTORY(er)
+-
+ IF(NOT SCR_USE_EXTERNAL_DTCMP)
+     ADD_SUBDIRECTORY(dtcmp)
+     ADD_SUBDIRECTORY(lwgrp)
+@@ -94,11 +92,12 @@ IF(NOT SCR_USE_EXTERNAL_SHUFFILE)
+     LIST(APPEND scr_component_objects $<TARGET_OBJECTS:shuffile_o>)
+ ENDIF()
+ 
+-ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
++IF(NOT SCR_USE_EXTERNAL_ER)
++    ADD_SUBDIRECTORY(er)
++    LIST(APPEND scr_component_objects $<TARGET_OBJECTS:er_o>)
++ENDIF()
+ 
+-LIST(APPEND scr_component_objects
+-    $<TARGET_OBJECTS:er_o>
+-)
++ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ #
+ # Produce shared libary

@@ -1,0 +1,184 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 21bb4d5f..dd13eb98 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -13,10 +13,16 @@ INCLUDE(CheckIncludeFile)
+ # check for byteswap file for kvtree
+ CHECK_INCLUDE_FILE(byteswap.h HAVE_BYTESWAP_H)
+ 
++INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
++
++IF(NOT SCR_USE_EXTERNAL_DTCMP)
++    INCLUDE_DIRECTORIES(
++        ${CMAKE_SOURCE_DIR}/src/lwgrp
++        ${CMAKE_SOURCE_DIR}/src/dtcmp
++    )
++ENDIF()
++
+ INCLUDE_DIRECTORIES(
+-    ${CMAKE_CURRENT_SOURCE_DIR}
+-    ${CMAKE_SOURCE_DIR}/src/lwgrp
+-    ${CMAKE_SOURCE_DIR}/src/dtcmp
+     ${CMAKE_SOURCE_DIR}/src/kvtree
+     ${CMAKE_SOURCE_DIR}/src/spath
+     ${CMAKE_SOURCE_DIR}/src/rankstr
+diff --git a/cmake/FindDTCMP.cmake b/cmake/FindDTCMP.cmake
+new file mode 100644
+index 00000000..4638d8fc
+--- /dev/null
++++ b/cmake/FindDTCMP.cmake
+@@ -0,0 +1,71 @@
++# - Try to find libdtcmp
++# Once done this will define
++#  DTCMP_FOUND - System has libdtcmp
++#  DTCMP_INCLUDE_DIRS - The libdtcmp include directories
++#  DTCMP_LIBRARIES - The libraries needed to use libdtcmp
++#
++# An installed dtcmp CMake package (dtcmpConfig.cmake) is preferred,
++# falling back to searching for the header and libraries directly.
++# Set WITH_DTCMP_PREFIX (and optionally WITH_LWGRP_PREFIX)
++# to search a specific install location first.
++
++INCLUDE(FindPackageHandleStandardArgs)
++
++# dtcmp's package finds lwgrp itself (needed for a static dtcmp)
++IF(WITH_LWGRP_PREFIX AND NOT LWGRP_ROOT)
++    SET(LWGRP_ROOT ${WITH_LWGRP_PREFIX})
++ENDIF()
++
++FIND_PACKAGE(dtcmp CONFIG QUIET HINTS ${WITH_DTCMP_PREFIX})
++IF(dtcmp_DIR AND NOT dtcmp_FOUND)
++    MESSAGE(FATAL_ERROR "Found ${dtcmp_DIR} but could not load it: ${dtcmp_NOT_FOUND_MESSAGE}")
++ENDIF()
++IF(TARGET dtcmp::dtcmp)
++    # the target carries MPI and, for a static dtcmp, lwgrp
++    GET_TARGET_PROPERTY(DTCMP_INCLUDE_DIRS dtcmp::dtcmp INTERFACE_INCLUDE_DIRECTORIES)
++    SET(DTCMP_LIBRARIES dtcmp::dtcmp)
++    FIND_PACKAGE_HANDLE_STANDARD_ARGS(DTCMP DEFAULT_MSG
++        DTCMP_LIBRARIES
++        DTCMP_INCLUDE_DIRS
++    )
++    RETURN()
++ENDIF()
++
++FIND_PATH(DTCMP_INCLUDE_DIRS
++    NAMES dtcmp.h
++    HINTS ${WITH_DTCMP_PREFIX}
++    PATH_SUFFIXES include
++)
++
++FIND_LIBRARY(DTCMP_LIBRARY
++    NAMES dtcmp
++    HINTS ${WITH_DTCMP_PREFIX}
++    PATH_SUFFIXES lib lib64
++)
++
++# dtcmp depends on lwgrp, which must be linked explicitly
++# when dtcmp is a static library
++FIND_LIBRARY(LWGRP_LIBRARY
++    NAMES lwgrp
++    HINTS ${WITH_LWGRP_PREFIX} ${WITH_DTCMP_PREFIX}
++    PATH_SUFFIXES lib lib64
++)
++
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(DTCMP DEFAULT_MSG
++    DTCMP_LIBRARY
++    DTCMP_INCLUDE_DIRS
++)
++
++IF(DTCMP_FOUND)
++    SET(DTCMP_LIBRARIES ${DTCMP_LIBRARY})
++    IF(LWGRP_LIBRARY)
++        LIST(APPEND DTCMP_LIBRARIES ${LWGRP_LIBRARY})
++    ENDIF()
++ENDIF()
++
++# Hide these vars from ccmake GUI
++MARK_AS_ADVANCED(
++    DTCMP_LIBRARY
++    LWGRP_LIBRARY
++    DTCMP_INCLUDE_DIRS
++)
+diff --git a/cmake/SCR_DEPENDENCIES.cmake b/cmake/SCR_DEPENDENCIES.cmake
+index 765f2ba0..b6e8b916 100644
+--- a/cmake/SCR_DEPENDENCIES.cmake
++++ b/cmake/SCR_DEPENDENCIES.cmake
+@@ -14,6 +14,14 @@ ELSE(MPI_C_FOUND)
+         "or force CMake to build using the correct compiler (`export CC=mpicc`).")
+ ENDIF(MPI_C_FOUND)
+ 
++## DTCMP
++IF(SCR_USE_EXTERNAL_DTCMP)
++    FIND_PACKAGE(DTCMP REQUIRED)
++    INCLUDE_DIRECTORIES(${DTCMP_INCLUDE_DIRS})
++    LIST(APPEND SCR_EXTERNAL_LIBS ${DTCMP_LIBRARIES})
++    LIST(APPEND SCR_EXTERNAL_STATIC_LIBS ${DTCMP_LIBRARIES})
++ENDIF(SCR_USE_EXTERNAL_DTCMP)
++
+ ## DataWarp
+ IF(ENABLE_CRAY_DW)
+     FIND_PACKAGE(DataWarp REQUIRED)
+diff --git a/cmake/SCR_OPTIONS.cmake b/cmake/SCR_OPTIONS.cmake
+index be37ff55..ca49a975 100644
+--- a/cmake/SCR_OPTIONS.cmake
++++ b/cmake/SCR_OPTIONS.cmake
+@@ -142,6 +142,9 @@ IF(ENABLE_PDSH)
+     MESSAGE(STATUS "BUILD_PDSH: ${BUILD_PDSH}")
+ ENDIF(ENABLE_PDSH)
+ 
++OPTION(SCR_USE_EXTERNAL_DTCMP "Use an external DTCMP (and LWGRP) instead of the bundled copies" OFF)
++MESSAGE(STATUS "SCR_USE_EXTERNAL_DTCMP: ${SCR_USE_EXTERNAL_DTCMP}")
++
+ OPTION(ENABLE_TESTS "Build tests" ON)
+ MESSAGE(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+ 
+diff --git a/cmake/scrConfig.cmake.in b/cmake/scrConfig.cmake.in
+index f0981651..c0c72b16 100644
+--- a/cmake/scrConfig.cmake.in
++++ b/cmake/scrConfig.cmake.in
+@@ -4,6 +4,11 @@ include(CMakeFindDependencyMacro)
+ 
+ find_dependency(MPI REQUIRED)
+ 
++# set when SCR was built against an external dtcmp's CMake package
++IF(@dtcmp_FOUND@)
++    find_dependency(dtcmp REQUIRED)
++ENDIF()
++
+ IF(@MYSQL_FOUND@)
+     find_dependency(MySQL REQUIRED)
+ ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 6c552c93..d0cc382e 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -50,20 +50,25 @@ LIST(APPEND libscr_srcs
+ )
+ 
+ ADD_SUBDIRECTORY(axl)
+-ADD_SUBDIRECTORY(dtcmp)
+ ADD_SUBDIRECTORY(er)
+ ADD_SUBDIRECTORY(kvtree)
+-ADD_SUBDIRECTORY(lwgrp)
+ ADD_SUBDIRECTORY(rankstr)
+ ADD_SUBDIRECTORY(redset)
+ ADD_SUBDIRECTORY(shuffile)
+ ADD_SUBDIRECTORY(spath)
+ 
++IF(NOT SCR_USE_EXTERNAL_DTCMP)
++    ADD_SUBDIRECTORY(dtcmp)
++    ADD_SUBDIRECTORY(lwgrp)
++    LIST(APPEND scr_component_objects
++        $<TARGET_OBJECTS:lwgrp_o>
++        $<TARGET_OBJECTS:dtcmp_o>
++    )
++ENDIF()
++
+ ADD_LIBRARY(scr_o OBJECT ${libscr_srcs})
+ 
+ LIST(APPEND scr_component_objects
+-    $<TARGET_OBJECTS:lwgrp_o>
+-    $<TARGET_OBJECTS:dtcmp_o>
+     $<TARGET_OBJECTS:axl_o>
+     $<TARGET_OBJECTS:er_o>
+     $<TARGET_OBJECTS:kvtree_o>
